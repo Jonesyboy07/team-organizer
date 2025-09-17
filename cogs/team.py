@@ -87,6 +87,29 @@ class TeamModifyView(discord.ui.View):
         view.add_item(TeamSelect())
         await interaction.response.edit_message(content="Select a team to modify:", view=view)
 
+class MemberSelectLoop(discord.ui.Select):
+    def __init__(self, teams, team_idx, field, options, parent_view):
+        self.teams = teams
+        self.team_idx = team_idx
+        self.field = field
+        self.parent_view = parent_view
+        super().__init__(placeholder="Select new Team Captain...", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        new_member_id = int(self.values[0])
+        team = self.teams[self.team_idx]
+        team[self.field] = new_member_id
+        guild_id = str(interaction.guild_id)
+        servers = ReadJSON("data/servers.json")
+        current_server = servers.get(guild_id, {})
+        current_server["teams"] = self.teams
+        servers[guild_id] = current_server
+        WriteJSON(servers, "data/servers.json")
+        member = interaction.guild.get_member(new_member_id)
+        await log_to_discord(interaction.client, guild_id, f"Updated {self.field} for team '{team['team_name']}' to member '{member.display_name if member else new_member_id}' by {interaction.user} ({interaction.user.id})")
+        await interaction.response.send_message(f"Updated **Team Captain** to **{member.mention if member else new_member_id}** for team **{team['team_name']}**.", ephemeral=True)
+        await interaction.edit_original_response(view=self.parent_view)
+
 class TeamFieldDropdownLoop(discord.ui.Select):
     """Dropdown for selecting a field to modify."""
     def __init__(self, teams, team_idx, guild: discord.Guild, parent_view):
