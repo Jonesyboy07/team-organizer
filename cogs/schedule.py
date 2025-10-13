@@ -39,8 +39,22 @@ def build_intro_embed(team_role_mention, start_date):
     embed.set_footer(text="React to each day's message to indicate your availability.")
     return embed
 
-def build_day_message(date_str):
-    return f"**{date_str}**"
+def build_day_message(*args):
+    """
+    Accepts either:
+      - build_day_message(date_str)
+      - build_day_message(team_role_mention, date_str)
+    Returns a message string with optional role mention on top.
+    """
+    if len(args) == 1:
+        date_str = args[0]
+        return f"**{date_str}**"
+    elif len(args) == 2:
+        team_role_mention, date_str = args
+        prefix = f"{team_role_mention}\n" if team_role_mention else ""
+        return f"{prefix}**{date_str}**"
+    else:
+        raise TypeError("build_day_message expects 1 or 2 arguments")
 
 async def send_weekly_schedule_messages(channel, team_role_mention, start_date):
     # Send intro embed (with ping)
@@ -87,7 +101,10 @@ class TeamScheduleDropdown(discord.ui.Select):
         now = datetime.now(tz)
         monday = get_previous_monday(now)
         channel_id = team.get("team_schedule_channel")
-        channel = interaction.guild.get_channel(channel_id)
+        try:
+            channel = interaction.guild.get_channel(int(channel_id)) if channel_id is not None else None
+        except (ValueError, TypeError):
+            channel = None
         if not channel:
             await log_to_discord(self.view.bot, str(interaction.guild_id), f"Schedule channel not found for team {team['team_name']} by {interaction.user} ({interaction.user.id})")
             await interaction.followup.send("Schedule channel not found.", ephemeral=True)
@@ -155,12 +172,19 @@ class ScheduleCog(commands.Cog):
 
                     if now.weekday() == 0 and now.hour == 12 and now.minute == 0:
                         channel_id = team.get("team_schedule_channel")
-                        channel = self.bot.get_channel(channel_id)
+                        try:
+                            channel = self.bot.get_channel(int(channel_id)) if channel_id is not None else None
+                        except (ValueError, TypeError):
+                            channel = None
                         if channel:
                             team_role_id = team.get("team_role")
                             team_role_mention = f"<@&{team_role_id}>" if team_role_id else ""
                             date_str = now.strftime("%A: The %d of %B")
-                            await send_schedule_message(channel, team_role_mention, date_str)
+                            try:
+                                await send_schedule_message(channel, team_role_mention, date_str)
+                            except Exception as e:
+                                await log_to_discord(self.bot, guild_id, f"Error sending automated schedule for team {team.get('team_name')}: {e}")
+                                continue
                             await log_to_discord(self.bot, guild_id, f"Automated weekly schedule sent for team {team['team_name']} in guild {guild_id}")
                             # Update last_synced
                             data = update_last_synced(data, guild_id, idx, today_str)
