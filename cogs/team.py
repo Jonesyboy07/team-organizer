@@ -29,13 +29,100 @@ class TeamDeleteDropdown(discord.ui.Select):
         await log_to_discord(interaction.client, guild_id, f"Team '{team['team_name']}' deleted by {interaction.user} ({interaction.user.id})")
         await interaction.response.edit_message(content=f"Team '{team['team_name']}' deleted.", view=None, embed=None)
 
+
 class TeamDeleteView(discord.ui.View):
     def __init__(self, teams):
         super().__init__(timeout=60)
         self.teams = teams
         self.add_item(TeamDeleteDropdown(teams))
 
-# ---------- MODIFY TEAM ----------
+# ---------- PAGINATED SELECTS ----------
+
+class PaginatedSelectView(discord.ui.View):
+    """Base class for paginated selects (members, roles, channels)."""
+    def __init__(self, items, label_fn, select_cls, teams, team_idx, field, parent_view, per_page=25):
+        super().__init__(timeout=180)
+        self.items = items
+        self.label_fn = label_fn
+        self.select_cls = select_cls
+        self.teams = teams
+        self.team_idx = team_idx
+        self.field = field
+        self.parent_view = parent_view
+        self.page = 0
+        self.per_page = per_page
+        self.max_page = max(0, math.ceil(len(items) / per_page) - 1)
+        self.update_dropdown()
+
+        self.prev_btn = discord.ui.Button(label="Prev", style=discord.ButtonStyle.secondary)
+        self.next_btn = discord.ui.Button(label="Next", style=discord.ButtonStyle.secondary)
+        self.prev_btn.callback = self.prev_page
+        self.next_btn.callback = self.next_page
+        self.add_item(self.prev_btn)
+        self.add_item(self.next_btn)
+
+    def update_dropdown(self):
+        start = self.page * self.per_page
+        end = start + self.per_page
+        opts = [discord.SelectOption(label=self.label_fn(x), value=str(x.id)) for x in self.items[start:end]]
+        self.clear_items()
+        dropdown = self.select_cls(self.teams, self.team_idx, self.field, opts, self.parent_view)
+        self.add_item(dropdown)
+        self.add_item(self.prev_btn)
+        self.add_item(self.next_btn)
+
+    async def prev_page(self, interaction: discord.Interaction):
+        if self.page > 0:
+            self.page -= 1
+            self.update_dropdown()
+            await interaction.response.edit_message(view=self)
+
+    async def next_page(self, interaction: discord.Interaction):
+        if self.page < self.max_page:
+            self.page += 1
+            self.update_dropdown()
+            await interaction.response.edit_message(view=self)
+
+
+class MemberSelectPaginated(PaginatedSelectView):
+    def __init__(self, teams, team_idx, field, guild, parent_view):
+        super().__init__(
+            items=guild.members,
+            label_fn=lambda m: m.display_name,
+            select_cls=MemberSelectLoop,
+            teams=teams,
+            team_idx=team_idx,
+            field=field,
+            parent_view=parent_view
+        )
+
+
+class RoleSelectPaginated(PaginatedSelectView):
+    def __init__(self, teams, team_idx, field, guild, parent_view):
+        super().__init__(
+            items=guild.roles,
+            label_fn=lambda r: r.name,
+            select_cls=RoleSelectLoop,
+            teams=teams,
+            team_idx=team_idx,
+            field=field,
+            parent_view=parent_view
+        )
+
+
+class ChannelSelectPaginated(PaginatedSelectView):
+    def __init__(self, teams, team_idx, field, guild, parent_view):
+        super().__init__(
+            items=guild.text_channels,
+            label_fn=lambda c: c.name,
+            select_cls=ChannelSelectLoop,
+            teams=teams,
+            team_idx=team_idx,
+            field=field,
+            parent_view=parent_view
+        )
+
+# ---------- MODIFY TEAM MAIN VIEW ----------
 
 class TeamModifyView(discord.ui.View):
     """Main modify view for a specific team with looping."""
@@ -47,21 +134,17 @@ class TeamModifyView(discord.ui.View):
 
         self.root_view = root_view if root_view else self
 
-        # Field dropdown
         self.field_dropdown = TeamFieldDropdownLoop(teams, team_idx, guild, self)
         self.add_item(self.field_dropdown)
 
-        # Close button
         close_btn = discord.ui.Button(label="Close", style=discord.ButtonStyle.danger)
         close_btn.callback = self.close_view
         self.add_item(close_btn)
 
-        # Home button (go to root modify)
         home_btn = discord.ui.Button(label="Home", style=discord.ButtonStyle.primary)
         home_btn.callback = self.go_home
         self.add_item(home_btn)
 
-        # Team select button
         team_select_btn = discord.ui.Button(label="Change Team", style=discord.ButtonStyle.secondary)
         team_select_btn.callback = self.change_team
         self.add_item(team_select_btn)
@@ -74,8 +157,7 @@ class TeamModifyView(discord.ui.View):
         await interaction.response.edit_message(content=f"Modify team: **{self.teams[self.team_idx]['team_name']}**", view=self.root_view)
 
     async def change_team(self, interaction: discord.Interaction):
-        # Display the team select dropdown again
-        options = [discord.SelectOption(label=t["team_name"], value=str(i)) for i,t in enumerate(self.teams)]
+        options = [discord.SelectOption(label=t["team_name"], value=str(i)) for i, t in enumerate(self.teams)]
         class TeamSelect(discord.ui.Select):
             def __init__(self_inner):
                 super().__init__(placeholder="Select a team to modify...", min_values=1, max_values=1, options=options)
@@ -86,6 +168,8 @@ class TeamModifyView(discord.ui.View):
         view = discord.ui.View()
         view.add_item(TeamSelect())
         await interaction.response.edit_message(content="Select a team to modify:", view=view)
+
+# ---------- SELECTS ----------
 
 class MemberSelectLoop(discord.ui.Select):
     def __init__(self, teams, team_idx, field, options, parent_view):
@@ -110,84 +194,6 @@ class MemberSelectLoop(discord.ui.Select):
         await interaction.response.send_message(f"Updated **Team Captain** to **{member.mention if member else new_member_id}** for team **{team['team_name']}**.", ephemeral=True)
         await interaction.edit_original_response(view=self.parent_view)
 
-class TeamFieldDropdownLoop(discord.ui.Select):
-    """Dropdown for selecting a field to modify."""
-    def __init__(self, teams, team_idx, guild: discord.Guild, parent_view):
-        self.teams = teams
-        self.team_idx = team_idx
-        self.guild = guild
-        self.parent_view = parent_view
-        options = [
-            discord.SelectOption(label="Team Name", value="team_name"),
-            discord.SelectOption(label="Game", value="game"),
-            discord.SelectOption(label="Team Captain", value="team_captain_id"),
-            discord.SelectOption(label="Team Role", value="team_role_id"),
-            discord.SelectOption(label="Schedule Channel", value="team_schedule_channel"),
-            discord.SelectOption(label="Timezone", value="timezone")
-        ]
-        super().__init__(placeholder="Select a field to modify...", min_values=1, max_values=1, options=options)
-
-    async def callback(self, interaction: discord.Interaction):
-        field = self.values[0]
-        team = self.teams[self.team_idx]
-        view = discord.ui.View()
-
-        # Team Captain
-        if field == "team_captain_id":
-            member_options = [discord.SelectOption(label=m.display_name, value=str(m.id)) for m in self.guild.members]
-            member_select = MemberSelectLoop(self.teams, self.team_idx, field, member_options, self.parent_view)
-            view.add_item(member_select)
-
-        # Team Role
-        elif field == "team_role_id":
-            role_options = [discord.SelectOption(label=r.name, value=str(r.id)) for r in self.guild.roles]
-            role_select = RoleSelectLoop(self.teams, self.team_idx, field, role_options, self.parent_view)
-            view.add_item(role_select)
-
-        # Channels
-        elif field == "team_schedule_channel":
-            channel_options = [discord.SelectOption(label=c.name, value=str(c.id)) for c in self.guild.text_channels]
-            channel_select = ChannelSelectLoop(self.teams, self.team_idx, field, channel_options, self.parent_view)
-            view.add_item(channel_select)
-
-        # Timezone (paginated)
-        elif field == "timezone":
-            tz_select = TimezoneSelectPaginated(self.teams, self.team_idx, field, self.parent_view)
-            await interaction.response.edit_message(content=f"Select timezone for **{team['team_name']}**:", view=tz_select)
-            return
-
-        # Text fields
-        else:
-            await interaction.response.send_modal(TeamModifyModalLoop(self.teams, self.team_idx, field, team.get(field, "")))
-            return
-
-        # Home button
-        home_btn = discord.ui.Button(label="Home", style=discord.ButtonStyle.primary)
-        async def home_callback(i: discord.Interaction):
-            await i.response.edit_message(content=f"Modify team: **{team['team_name']}**", view=self.parent_view)
-        home_btn.callback = home_callback
-        view.add_item(home_btn)
-
-        # Team select button
-        team_select_btn = discord.ui.Button(label="Change Team", style=discord.ButtonStyle.secondary)
-        async def team_callback(i: discord.Interaction):
-            options = [discord.SelectOption(label=t["team_name"], value=str(idx)) for idx,t in enumerate(self.teams)]
-            class TeamSelect(discord.ui.Select):
-                def __init__(self_inner):
-                    super().__init__(placeholder="Select a team to modify...", min_values=1, max_values=1, options=options)
-                async def callback(self_inner, interaction2: discord.Interaction):
-                    idx2 = int(self_inner.values[0])
-                    new_view = TeamModifyView(self.teams, interaction.guild, idx2)
-                    await interaction2.response.edit_message(content=f"Modifying team: **{self.teams[idx2]['team_name']}**", view=new_view)
-            new_view = discord.ui.View()
-            new_view.add_item(TeamSelect())
-            await i.response.edit_message(content="Select a team to modify:", view=new_view)
-        team_select_btn.callback = team_callback
-        view.add_item(team_select_btn)
-
-        await interaction.response.edit_message(content=f"Modify **{field.replace('_',' ').title()}**:", view=view)
-
-# ---------- ROLE/CHANNEL/TIMEZONE/TEXT HANDLERS ----------
 
 class RoleSelectLoop(discord.ui.Select):
     def __init__(self, teams, team_idx, field, options, parent_view):
@@ -212,6 +218,7 @@ class RoleSelectLoop(discord.ui.Select):
         await interaction.response.send_message(f"Updated **Team Role** to **{role.mention if role else new_role_id}** for team **{team['team_name']}**.", ephemeral=True)
         await interaction.edit_original_response(view=self.parent_view)
 
+
 class ChannelSelectLoop(discord.ui.Select):
     def __init__(self, teams, team_idx, field, options, parent_view):
         self.teams = teams
@@ -235,6 +242,46 @@ class ChannelSelectLoop(discord.ui.Select):
         await interaction.response.send_message(f"Updated **{self.field.replace('_',' ').title()}** to **{channel.name}** for team **{team['team_name']}**.", ephemeral=True)
         await interaction.edit_original_response(view=self.parent_view)
 
+# ---------- TEAM FIELD SELECT ----------
+
+class TeamFieldDropdownLoop(discord.ui.Select):
+    """Dropdown for selecting a field to modify."""
+    def __init__(self, teams, team_idx, guild: discord.Guild, parent_view):
+        self.teams = teams
+        self.team_idx = team_idx
+        self.guild = guild
+        self.parent_view = parent_view
+        options = [
+            discord.SelectOption(label="Team Name", value="team_name"),
+            discord.SelectOption(label="Game", value="game"),
+            discord.SelectOption(label="Team Captain", value="team_captain_id"),
+            discord.SelectOption(label="Team Role", value="team_role_id"),
+            discord.SelectOption(label="Schedule Channel", value="team_schedule_channel"),
+            discord.SelectOption(label="Timezone", value="timezone")
+        ]
+        super().__init__(placeholder="Select a field to modify...", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        field = self.values[0]
+        team = self.teams[self.team_idx]
+
+        if field == "team_captain_id":
+            view = MemberSelectPaginated(self.teams, self.team_idx, field, self.guild, self.parent_view)
+            await interaction.response.edit_message(content=f"Select new Team Captain for **{team['team_name']}**:", view=view)
+        elif field == "team_role_id":
+            view = RoleSelectPaginated(self.teams, self.team_idx, field, self.guild, self.parent_view)
+            await interaction.response.edit_message(content=f"Select new Team Role for **{team['team_name']}**:", view=view)
+        elif field == "team_schedule_channel":
+            view = ChannelSelectPaginated(self.teams, self.team_idx, field, self.guild, self.parent_view)
+            await interaction.response.edit_message(content=f"Select new Schedule Channel for **{team['team_name']}**:", view=view)
+        elif field == "timezone":
+            tz_select = TimezoneSelectPaginated(self.teams, self.team_idx, field, self.parent_view)
+            await interaction.response.edit_message(content=f"Select timezone for **{team['team_name']}**:", view=tz_select)
+        else:
+            await interaction.response.send_modal(TeamModifyModalLoop(self.teams, self.team_idx, field, team.get(field, "")))
+
+# ---------- TIMEZONE + MODAL ----------
+
 class TimezoneSelectPaginated(discord.ui.View):
     """Shows paginated dropdown for timezones (10 per page)."""
     def __init__(self, teams, team_idx, field, parent_view):
@@ -247,23 +294,6 @@ class TimezoneSelectPaginated(discord.ui.View):
         self.per_page = 10
         self.max_page = math.ceil(len(MAJOR_TIMEZONES)/self.per_page) - 1
         self.update_dropdown()
-
-        # Pagination buttons
-        self.prev_btn = discord.ui.Button(label="Prev", style=discord.ButtonStyle.secondary)
-        self.next_btn = discord.ui.Button(label="Next", style=discord.ButtonStyle.secondary)
-        self.prev_btn.callback = self.prev_page
-        self.next_btn.callback = self.next_page
-        self.add_item(self.prev_btn)
-        self.add_item(self.next_btn)
-
-        # Home and team select
-        home_btn = discord.ui.Button(label="Home", style=discord.ButtonStyle.primary)
-        home_btn.callback = self.go_home
-        self.add_item(home_btn)
-
-        team_select_btn = discord.ui.Button(label="Change Team", style=discord.ButtonStyle.secondary)
-        team_select_btn.callback = self.change_team
-        self.add_item(team_select_btn)
 
     def update_dropdown(self):
         start = self.page * self.per_page
@@ -285,21 +315,6 @@ class TimezoneSelectPaginated(discord.ui.View):
             self.update_dropdown()
             await interaction.response.edit_message(content=f"Select timezone for **{self.teams[self.team_idx]['team_name']}**:", view=self)
 
-    async def go_home(self, interaction: discord.Interaction):
-        await interaction.response.edit_message(content=f"Modify team: **{self.teams[self.team_idx]['team_name']}**", view=self.parent_view)
-
-    async def change_team(self, interaction: discord.Interaction):
-        options = [discord.SelectOption(label=t["team_name"], value=str(idx)) for idx,t in enumerate(self.teams)]
-        class TeamSelect(discord.ui.Select):
-            def __init__(self_inner):
-                super().__init__(placeholder="Select a team to modify...", min_values=1, max_values=1, options=options)
-            async def callback(self_inner, i: discord.Interaction):
-                idx2 = int(self_inner.values[0])
-                new_view = TeamModifyView(self.teams, i.guild, idx2)
-                await i.response.edit_message(content=f"Modifying team: **{self.teams[idx2]['team_name']}**", view=new_view)
-        view = discord.ui.View()
-        view.add_item(TeamSelect())
-        await interaction.response.edit_message(content="Select a team to modify:", view=view)
 
 class TimezoneSelectDropdown(discord.ui.Select):
     def __init__(self, teams, team_idx, field, options, parent_view, parent_paginated_view):
@@ -324,6 +339,7 @@ class TimezoneSelectDropdown(discord.ui.Select):
         await interaction.response.send_message(f"Updated timezone for **{team['team_name']}** to `{tz}`.", ephemeral=True)
         await interaction.edit_original_response(view=self.parent_view)
 
+
 class TeamModifyModalLoop(discord.ui.Modal):
     def __init__(self, teams, team_idx, field, current_value):
         super().__init__(title=f"Modify {field.replace('_',' ').title()}")
@@ -346,7 +362,7 @@ class TeamModifyModalLoop(discord.ui.Modal):
         await log_to_discord(interaction.client, guild_id, f"Updated {self.field} for team '{team['team_name']}' to '{new_value}' by {interaction.user} ({interaction.user.id})")
         await interaction.response.send_message(f"Updated **{self.field.replace('_',' ').title()}** to `{new_value}` for team **{team['team_name']}**.", ephemeral=True)
 
-# ---------- LIST TEAMS ----------
+# ---------- TEAM LIST / DELETE / MODIFY COMMANDS ----------
 
 class TeamListView(discord.ui.View):
     def __init__(self, teams, interaction, per_page=5):
@@ -416,7 +432,6 @@ class TeamListView(discord.ui.View):
         embed.set_footer(text=f"Page {self.page + 1} of {self.max_page + 1}")
         return embed
 
-# ---------- COG ----------
 
 class TeamCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -531,6 +546,7 @@ class TeamCog(commands.Cog):
         view = TeamModifyView(teams, interaction.guild, 0)
         await log_to_discord(self.bot, guild_id, f"Team modify view sent by {interaction.user} ({interaction.user.id})")
         await interaction.response.send_message(content=f"Modify team: **{teams[0]['team_name']}**", view=view, ephemeral=True)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(TeamCog(bot))

@@ -79,7 +79,7 @@ def CheckIfTeamCaptain(role_ids, guild_id, team_name):
         for team in teams:
             if team.get("team_name") == team_name:
                 for role_id in role_ids:
-                    if team.get("team_cap_role") == role_id:
+                    if team.get("team_captain_id") == role_id:
                         return True
     return False
 
