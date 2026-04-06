@@ -145,7 +145,7 @@ class TeamCog(commands.Cog):
         card = discord.ui.LayoutView(timeout=120)
         container = discord.ui.Container(accent_color=discord.Color.green())
         container.add_item(discord.ui.TextDisplay(f"## ✅ Team Created: {team_name}"))
-        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small, divider=True))
+        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
         container.add_item(discord.ui.TextDisplay(
             f"**Game:** {game}\n"
             f"**Captain:** {team_captain.mention}\n"
@@ -278,8 +278,14 @@ class TeamCog(commands.Cog):
         await log_to_discord(self.bot, guild_id, f"Team modify view sent by {interaction.user} ({interaction.user.id})")
         await interaction.response.send_message(content=f"Modify team: **{teams[0]['team_name']}**", view=view, ephemeral=True)
 
-    @app_commands.command(name="request_match", description="Request a match from another team.")
-    @app_commands.autocomplete(requesting_team=team_name_autocomplete, target_team=team_name_autocomplete)
+    @app_commands.command(name="request_match", description="Request a match from another team (including teams outside this server).")
+    @app_commands.describe(
+        requesting_team="Your team name (must be configured in this server).",
+        target_team="Target team name (can be from another server).",
+        date="Match date in YYYY-MM-DD format.",
+        notes="Optional notes for the request.",
+    )
+    @app_commands.autocomplete(requesting_team=team_name_autocomplete)
     async def request_match(
         self,
         interaction: discord.Interaction,
@@ -321,15 +327,7 @@ class TeamCog(commands.Cog):
             )
             return
 
-        if receiver_team is None:
-            await CommandResponse.error(
-                interaction,
-                "Target team was not found.",
-                hint="Use an autocomplete option from the command list.",
-            )
-            return
-
-        if requester_team.get("team_name") == receiver_team.get("team_name"):
+        if receiver_team is not None and requester_team.get("team_name") == receiver_team.get("team_name"):
             await CommandResponse.warning(
                 interaction,
                 "You cannot request a match against the same team.",
@@ -347,28 +345,49 @@ class TeamCog(commands.Cog):
             )
             return
 
-        request_channel_id = receiver_team.get("team_request_channel")
-        request_channel = interaction.guild.get_channel(int(request_channel_id)) if request_channel_id else None
-        if request_channel is None:
-            await log_to_discord(
-                self.bot,
-                guild_id,
-                f"request_match failed: request channel missing for target team {receiver_team.get('team_name')}",
-            )
-            await CommandResponse.error(
-                interaction,
-                "Target team has no valid match request channel configured.",
-                hint="An admin can set it via /modify_team.",
-            )
-            return
+        if receiver_team is None:
+            # External target: keep request flow in the requesting team's channel.
+            target_team_name = target_team.strip()
+            target_team_captain_id = 0
+            request_channel_id = requester_team.get("team_request_channel")
+            request_channel = interaction.guild.get_channel(int(request_channel_id)) if request_channel_id else None
+            if request_channel is None:
+                await log_to_discord(
+                    self.bot,
+                    guild_id,
+                    f"request_match failed: external target '{target_team}' but requesting team channel missing for {requester_team.get('team_name')}",
+                )
+                await CommandResponse.error(
+                    interaction,
+                    "External match request could not be posted because your team has no valid request channel.",
+                    hint="Ask an admin to set your team request channel via /modify_team.",
+                )
+                return
+        else:
+            target_team_name = receiver_team.get("team_name", target_team)
+            target_team_captain_id = int(receiver_team.get("team_captain_id", 0))
+            request_channel_id = receiver_team.get("team_request_channel")
+            request_channel = interaction.guild.get_channel(int(request_channel_id)) if request_channel_id else None
+            if request_channel is None:
+                await log_to_discord(
+                    self.bot,
+                    guild_id,
+                    f"request_match failed: request channel missing for target team {receiver_team.get('team_name')}",
+                )
+                await CommandResponse.error(
+                    interaction,
+                    "Target team has no valid match request channel configured.",
+                    hint="An admin can set it via /modify_team.",
+                )
+                return
 
         view = MatchRequestSetupView(
             bot=self.bot,
             guild_id=guild_id,
             requester=interaction.user,
             requesting_team_name=requester_team.get("team_name", requesting_team),
-            target_team_name=receiver_team.get("team_name", target_team),
-            target_team_captain_id=int(receiver_team.get("team_captain_id", 0)),
+            target_team_name=target_team_name,
+            target_team_captain_id=target_team_captain_id,
             request_channel=request_channel,
             request_date=date,
             notes=notes,
@@ -378,7 +397,7 @@ class TeamCog(commands.Cog):
             self.bot,
             guild_id,
             f"request_match setup opened by {interaction.user} ({interaction.user.id}) for "
-            f"{requesting_team} -> {target_team} on {date}",
+            f"{requesting_team} -> {target_team_name} on {date}",
         )
         await interaction.response.send_message(
             "Select the requested time and timezone, then submit.",

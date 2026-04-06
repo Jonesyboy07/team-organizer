@@ -23,7 +23,7 @@ class JoinedCog(commands.Cog):
         view = discord.ui.LayoutView(timeout=None)
         container = discord.ui.Container(accent_color=discord.Color.teal())
         container.add_item(discord.ui.TextDisplay(f"## 👋 Welcome to {guild.name}!"))
-        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small, divider=True))
+        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
         container.add_item(
             discord.ui.TextDisplay(
                 "Thanks for adding the bot! Here's how to get started:\n\n"

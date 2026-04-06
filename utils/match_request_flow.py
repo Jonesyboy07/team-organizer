@@ -7,7 +7,6 @@ import pytz
 from utils.command_helpers import CommandResponse
 from utils.constants import MAJOR_TIMEZONES, TIMEZONE_MAP
 from utils.funcs import CheckIfAdminRole, log_to_discord
-from utils.team_service import find_team_by_name
 
 
 TIME_OPTIONS = [
@@ -291,10 +290,10 @@ class MatchRequestReviewView(discord.ui.LayoutView):
 
         container = discord.ui.Container(accent_color=discord.Color.blurple())
         container.add_item(self.header)
-        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small, divider=True))
+        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
         container.add_item(self.status)
         container.add_item(details)
-        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large, divider=False))
+        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
         container.add_item(self.actions)
 
         self.add_item(container)

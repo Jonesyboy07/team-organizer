@@ -53,14 +53,14 @@ class SetupCog(commands.Cog):
         card = discord.ui.LayoutView(timeout=180)
         container = discord.ui.Container(accent_color=discord.Color.green())
         container.add_item(discord.ui.TextDisplay("## ✅ Bot Setup Complete! 🎉"))
-        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small, divider=True))
+        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
         container.add_item(discord.ui.TextDisplay(
             f"**Command Channel:** {command_channel.mention}\n"
             f"**Admin Role:** {admin_role.mention}\n"
             f"**Update Logs:** {update_logs.mention}\n"
             f"**Bot Logs:** {bot_logs.mention}"
         ))
-        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small, divider=True))
+        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
         container.add_item(discord.ui.TextDisplay(
             "**Next Steps:**\n"
             "• Review Integrations tab to limit command visibility to trusted users\n"

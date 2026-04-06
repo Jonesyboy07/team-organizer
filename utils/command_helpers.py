@@ -19,7 +19,7 @@ class CommandResponse:
         container = discord.ui.Container(accent_color=color)
         container.add_item(discord.ui.TextDisplay(message))
         if hint:
-            container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small, divider=False))
+            container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
             container.add_item(discord.ui.TextDisplay(f"-# 💡 {hint}"))
         view.add_item(container)
         return view

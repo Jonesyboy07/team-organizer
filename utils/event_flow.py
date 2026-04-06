@@ -59,10 +59,10 @@ class EventRSVPLayoutView(discord.ui.LayoutView):
 
         container = discord.ui.Container(accent_color=discord.Color.purple())
         container.add_item(self.header)
-        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small, divider=True))
+        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
         container.add_item(self.meta)
         container.add_item(self.attendance)
-        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large, divider=False))
+        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
         container.add_item(self.actions)
         self.add_item(container)
 

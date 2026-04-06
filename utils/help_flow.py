@@ -86,13 +86,13 @@ class HelpLayoutView(discord.ui.LayoutView):
 
         container = discord.ui.Container(accent_color=discord.Color.blue())
         container.add_item(self.header)
-        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small, divider=True))
+        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
         container.add_item(self.body)
 
         self.controls_row = HelpControlsRow(self)
         self.section_row = HelpSectionRow(self)
 
-        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large, divider=False))
+        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
         container.add_item(self.controls_row)
         container.add_item(self.section_row)
         self.add_item(container)
