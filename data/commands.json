@@ -135,7 +135,7 @@
                 },
                 {
                     "name": "request_match",
-                    "description": "Request a match from another team.",
+                    "description": "Request a match from another team (including teams outside this server).",
                     "usage": "/request_match requesting_team:<text> target_team:<text> date:<text> [notes:<text>]",
                     "admin_required": false
                 }
