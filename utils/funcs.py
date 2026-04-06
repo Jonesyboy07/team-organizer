@@ -1,5 +1,6 @@
 import json
 from os import path
+from datetime import datetime, timezone
 from utils.server_store import read_servers, get_server
 
 def CheckIfBotChannel(channel_id, guild_id):
@@ -85,6 +86,7 @@ async def log_to_discord(bot, guild_id, message):
         if guild:
             channel = guild.get_channel(int(channel_id))
             if channel:
-                await channel.send(f"[LOG] {message}")
+                timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+                await channel.send(f"[{timestamp}] {message}")
                 return True
     return False

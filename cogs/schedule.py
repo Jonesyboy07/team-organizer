@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 from utils.funcs import CheckIfAdminRole, log_to_discord
+from utils.command_helpers import CommandResponse
 from datetime import datetime
 import asyncio
 
@@ -42,7 +43,11 @@ class TeamScheduleDropdown(discord.ui.Select):
         if not channel:
             await log_to_discord(self.view.bot, str(interaction.guild_id),
                                  f"Schedule channel not found for {team['team_name']} by {interaction.user}")
-            await interaction.followup.send("Schedule channel not found.", ephemeral=True)
+            await CommandResponse.followup_error(
+                interaction,
+                f"Schedule channel not found for **{team['team_name']}**.",
+                hint="Ask an admin to set one via `/modify_team`.",
+            )
             return
 
         team_role_id = team.get("team_role_id")
@@ -58,7 +63,7 @@ class TeamScheduleDropdown(discord.ui.Select):
         servers = update_last_synced(servers, guild_id, idx, today_str)
         write_servers(servers)
 
-        await interaction.followup.send(f"✅ Weekly scheduling messages sent for **{team['team_name']}**.", ephemeral=True)
+        await CommandResponse.followup_success(interaction, f"Weekly scheduling messages sent for **{team['team_name']}**.")
 
 
 class TeamScheduleView(discord.ui.View):
@@ -95,7 +100,6 @@ class ScheduleCog(commands.Cog):
                 data = {}
 
             updated = False
-            print("[ScheduleCog] Running automated schedule check...")
 
             for guild_id, guild_data in data.items():
                 if not guild_data.get("SetupComplete", False):
@@ -143,12 +147,12 @@ class ScheduleCog(commands.Cog):
         user_roles = [r.id for r in interaction.user.roles]
         current_server = get_server(guild_id)
         if not is_setup_complete(guild_id):
-            await interaction.response.send_message("⚠️ Bot not setup yet.", ephemeral=True)
+            await CommandResponse.warning(interaction, "Bot is not set up yet.", hint="Run `/setup` first.")
             return
 
         teams = current_server.get("teams", [])
         if not teams:
-            await interaction.response.send_message("No teams found.", ephemeral=True)
+            await CommandResponse.info(interaction, "No teams found.", hint="Use `/create_team` to add one.")
             return
 
         allowed_team_idxs = []
@@ -157,7 +161,11 @@ class ScheduleCog(commands.Cog):
                 allowed_team_idxs.append(idx)
 
         if not allowed_team_idxs:
-            await interaction.response.send_message("You do not have permission to send scheduling.", ephemeral=True)
+            await CommandResponse.error(
+                interaction,
+                "You do not have permission to send scheduling.",
+                hint="Only admin roles and team captains can use this.",
+            )
             return
 
         allowed_teams = [teams[idx] for idx in allowed_team_idxs]

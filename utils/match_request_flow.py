@@ -4,6 +4,7 @@ import uuid
 import discord
 import pytz
 
+from utils.command_helpers import CommandResponse
 from utils.constants import MAJOR_TIMEZONES, TIMEZONE_MAP
 from utils.funcs import CheckIfAdminRole, log_to_discord
 from utils.team_service import find_team_by_name
@@ -95,19 +96,26 @@ class MatchRequestSetupView(discord.ui.View):
     @discord.ui.button(label="Submit Request", style=discord.ButtonStyle.success)
     async def submit_request(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.requester.id:
-            await interaction.response.send_message("Only the original requester can submit this request.", ephemeral=True)
+            await CommandResponse.error(
+                interaction,
+                "Only the original requester can submit this request.",
+            )
             return
 
         if self.selected_timezone is None or self.selected_time is None:
-            await interaction.response.send_message("Please choose both a timezone and time first.", ephemeral=True)
+            await CommandResponse.warning(
+                interaction,
+                "Please choose both a timezone and a time first.",
+            )
             return
 
         try:
             dt = parse_request_datetime(self.request_date, self.selected_time, self.selected_timezone)
         except ValueError:
-            await interaction.response.send_message(
-                "Invalid date format. Please use YYYY-MM-DD when running the command.",
-                ephemeral=True,
+            await CommandResponse.error(
+                interaction,
+                "Invalid date format.",
+                hint="Use YYYY-MM-DD when running /request_match.",
             )
             return
         except Exception as exc:  # noqa: BLE001
@@ -116,9 +124,10 @@ class MatchRequestSetupView(discord.ui.View):
                 self.guild_id,
                 f"request_match datetime parse failure for {self.requester.id}: {repr(exc)}",
             )
-            await interaction.response.send_message(
-                "I could not parse the selected date/time/timezone. Please try again.",
-                ephemeral=True,
+            await CommandResponse.error(
+                interaction,
+                "Could not parse the selected date, time, or timezone.",
+                hint="Reopen /request_match and try again.",
             )
             return
 
@@ -145,9 +154,10 @@ class MatchRequestSetupView(discord.ui.View):
                 self.guild_id,
                 f"request_match send failure for {self.requester.id} into {self.request_channel.id}: {repr(exc)}",
             )
-            await interaction.response.send_message(
-                "I could not send this request to the configured channel. Check permissions and try again.",
-                ephemeral=True,
+            await CommandResponse.error(
+                interaction,
+                "Could not post the request to the target channel.",
+                hint="Check channel permissions and team request channel configuration.",
             )
             return
 
@@ -182,11 +192,17 @@ class RequestInfoModal(discord.ui.Modal):
 
     async def on_submit(self, interaction: discord.Interaction):
         if self.parent_view.resolved:
-            await interaction.response.send_message("This request has already been resolved.", ephemeral=True)
+            await CommandResponse.warning(
+                interaction,
+                "This request has already been resolved.",
+            )
             return
 
         if not self.parent_view.can_review(interaction):
-            await interaction.response.send_message("You are not allowed to review this request.", ephemeral=True)
+            await CommandResponse.error(
+                interaction,
+                "You are not allowed to review this request.",
+            )
             return
 
         question_text = str(self.question.value)
@@ -212,7 +228,7 @@ class RequestInfoModal(discord.ui.Modal):
             f"Further info requested by {interaction.user} ({interaction.user.id}) for request {self.parent_view.request_id}. "
             f"DM delivered={sent}. Error={dm_error}",
         )
-        await interaction.response.send_message(status, ephemeral=True)
+        await CommandResponse.info(interaction, status)
 
 
 class MatchRequestActionRow(discord.ui.ActionRow):
@@ -313,11 +329,17 @@ class MatchRequestReviewView(discord.ui.LayoutView):
 
     async def handle_resolution(self, interaction: discord.Interaction, approved: bool):
         if self.resolved:
-            await interaction.response.send_message("This request has already been resolved.", ephemeral=True)
+            await CommandResponse.warning(
+                interaction,
+                "This request has already been resolved.",
+            )
             return
 
         if not self.can_review(interaction):
-            await interaction.response.send_message("You are not allowed to review this request.", ephemeral=True)
+            await CommandResponse.error(
+                interaction,
+                "You are not allowed to review this request.",
+            )
             return
 
         decision = "accepted" if approved else "denied"

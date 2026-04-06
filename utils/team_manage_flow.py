@@ -4,6 +4,7 @@ import discord
 from utils.funcs import log_to_discord
 from utils.constants import MAJOR_TIMEZONES
 from utils.server_store import save_teams
+from utils.command_helpers import CommandResponse
 
 
 def persist_teams(guild_id: str, teams: list):
@@ -28,7 +29,7 @@ class TeamDeleteDropdown(discord.ui.Select):
             guild_id,
             f"Team '{team['team_name']}' deleted by {interaction.user} ({interaction.user.id})",
         )
-        await interaction.response.edit_message(content=f"Team '{team['team_name']}' deleted.", view=None, embed=None)
+        await interaction.response.edit_message(content=f"✅ Team **{team['team_name']}** has been deleted.", view=None, embed=None)
 
 
 class TeamDeleteView(discord.ui.View):
@@ -150,7 +151,7 @@ class TeamModifyView(discord.ui.View):
         self.add_item(team_select_btn)
 
     async def close_view(self, interaction: discord.Interaction):
-        await interaction.response.edit_message(content="Modification session closed.", view=None)
+        await interaction.response.edit_message(content="✅ Modification session closed.", view=None)
         self.stop()
 
     async def go_home(self, interaction: discord.Interaction):
@@ -197,9 +198,9 @@ class MemberSelectLoop(discord.ui.Select):
             guild_id,
             f"Updated {self.field} for team '{team['team_name']}' to member '{member.display_name if member else new_member_id}' by {interaction.user} ({interaction.user.id})",
         )
-        await interaction.response.send_message(
+        await CommandResponse.success(
+            interaction,
             f"Updated **Team Captain** to **{member.mention if member else new_member_id}** for team **{team['team_name']}**.",
-            ephemeral=True,
         )
         await interaction.edit_original_response(view=self.parent_view)
 
@@ -224,9 +225,9 @@ class RoleSelectLoop(discord.ui.Select):
             guild_id,
             f"Updated {self.field} for team '{team['team_name']}' to role '{role.name if role else new_role_id}' by {interaction.user} ({interaction.user.id})",
         )
-        await interaction.response.send_message(
+        await CommandResponse.success(
+            interaction,
             f"Updated **Team Role** to **{role.mention if role else new_role_id}** for team **{team['team_name']}**.",
-            ephemeral=True,
         )
         await interaction.edit_original_response(view=self.parent_view)
 
@@ -252,9 +253,9 @@ class ChannelSelectLoop(discord.ui.Select):
             guild_id,
             f"Updated {self.field} for team '{team['team_name']}' to channel '{channel_name}' by {interaction.user} ({interaction.user.id})",
         )
-        await interaction.response.send_message(
+        await CommandResponse.success(
+            interaction,
             f"Updated **{self.field.replace('_', ' ').title()}** to **{channel_name}** for team **{team['team_name']}**.",
-            ephemeral=True,
         )
         await interaction.edit_original_response(view=self.parent_view)
 
@@ -360,7 +361,7 @@ class TimezoneSelectDropdown(discord.ui.Select):
             guild_id,
             f"Updated timezone for team '{team['team_name']}' to '{tz}' by {interaction.user} ({interaction.user.id})",
         )
-        await interaction.response.send_message(f"Updated timezone for **{team['team_name']}** to `{tz}`.", ephemeral=True)
+        await CommandResponse.success(interaction, f"Updated timezone for **{team['team_name']}** to `{tz}`.")
         await interaction.edit_original_response(view=self.parent_view)
 
 
@@ -386,9 +387,9 @@ class TeamModifyModalLoop(discord.ui.Modal):
             guild_id,
             f"Updated {self.field} for team '{team['team_name']}' to '{new_value}' by {interaction.user} ({interaction.user.id})",
         )
-        await interaction.response.send_message(
+        await CommandResponse.success(
+            interaction,
             f"Updated **{self.field.replace('_', ' ').title()}** to `{new_value}` for team **{team['team_name']}**.",
-            ephemeral=True,
         )
 
 

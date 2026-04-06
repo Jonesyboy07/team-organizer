@@ -5,6 +5,7 @@ import discord
 from discord.ext import commands
 from cogs.init import get_cogs
 from utils.stats_cache import cache_stats
+from utils.command_docs import sync_commands_json
 
 load_dotenv()
 token = os.getenv("DISCORD_TOKEN")
@@ -28,23 +29,15 @@ async def on_ready():
     print(f"Logged in as: {client.user} - {client.user.id}")
     client.loop.create_task(cache_stats(client))
     # await client.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="The Number One Free Scheduling Bot"))
-    try:
-        synced_commands = await client.tree.sync()  # Ensure commands are synced
-        print(f"Synced {len(synced_commands)} command(s)")
-        for command in synced_commands:
-            print(f"- {command.name}")
-        print("----------------------------")
-        print(f"We are in the following guild(s) - ({len(client.guilds)}):")
-        for guild in client.guilds:
-            print(f"- {guild.name} (id: {guild.id})")
-    except Exception as e:
-        print(e)
+    print("----------------------------")
+    print(f"We are in the following guild(s) - ({len(client.guilds)}):")
+    for guild in client.guilds:
+        print(f"- {guild.name} (id: {guild.id})")
 
-
-# Event: When the bot joins a guild
-@client.event
-async def on_guild_join(guild: discord.Guild):  
-    await client.tree.sync(guild=guild)
+    if not getattr(client, "_commands_docs_synced", False):
+        cmd_count = sync_commands_json(client)
+        client._commands_docs_synced = True
+        print(f"Auto-synced data/commands.json with {cmd_count} slash command(s)")
 
 # Load cogs
 async def load_cogs():

@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 
 from utils.constants import MAJOR_TIMEZONES
+from utils.command_helpers import CommandResponse, validate_date_format
 from utils.funcs import CheckIfAdminRole, log_to_discord
 from utils.match_request_flow import MatchRequestSetupView
 from utils.server_store import get_server, get_teams, is_setup_complete, set_server
@@ -29,7 +30,10 @@ class TeamCog(commands.Cog):
         guild_id = str(interaction.guild_id)
         teams = get_teams(guild_id)
         if not teams:
-            await interaction.response.send_message("No teams are configured yet.", ephemeral=True)
+            await CommandResponse.info(
+                interaction,
+                "No teams are configured yet.",
+            )
             return
 
         member_role_ids = {role.id for role in interaction.user.roles}
@@ -41,7 +45,11 @@ class TeamCog(commands.Cog):
                 mine.append(team)
 
         if not mine:
-            await interaction.response.send_message("You are not linked to any configured team roles/captain slots.", ephemeral=True)
+            await CommandResponse.info(
+                interaction,
+                "You are not linked to any configured team roles or captain slots.",
+                hint="Ask an admin to set your team role or captain assignment.",
+            )
             return
 
         view = discord.ui.LayoutView(timeout=120)
@@ -86,7 +94,11 @@ class TeamCog(commands.Cog):
                 guild_id,
                 f"Unauthorized create_team attempt by {interaction.user} ({interaction.user.id})",
             )
-            await interaction.response.send_message("You do not have permission.", ephemeral=True)
+            await CommandResponse.error(
+                interaction,
+                "You do not have permission to create teams.",
+                hint="Only configured admin roles can use this command.",
+            )
             return
 
         current_server = get_server(guild_id)
@@ -96,12 +108,19 @@ class TeamCog(commands.Cog):
                 guild_id,
                 f"create_team failed: bot not setup by {interaction.user} ({interaction.user.id})",
             )
-            await interaction.response.send_message("Bot not setup yet.", ephemeral=True)
+            await CommandResponse.error(
+                interaction,
+                "Server setup is incomplete.",
+                hint="Run /setup first.",
+            )
             return
 
         teams = current_server.get("teams", [])
         if any(t.get("team_name", "").lower() == team_name.lower() for t in teams):
-            await interaction.response.send_message("A team with that name already exists.", ephemeral=True)
+            await CommandResponse.warning(
+                interaction,
+                f"A team named '{team_name}' already exists.",
+            )
             return
 
         team_data = {
@@ -123,15 +142,20 @@ class TeamCog(commands.Cog):
             guild_id,
             f"Team '{team_name}' created for '{game}' by {interaction.user} ({interaction.user.id})",
         )
-        await interaction.response.send_message(
-            (
-                f"Team '{team_name}' created for '{game}'. "
-                f"Captain: {team_captain.mention}, Role: {team_role.mention}, "
-                f"Schedule Channel: {team_schedule_channel.mention}, "
-                f"Request Channel: {team_request_channel.mention}, Timezone: {timezone}"
-            ),
-            ephemeral=True,
-        )
+        card = discord.ui.LayoutView(timeout=120)
+        container = discord.ui.Container(accent_color=discord.Color.green())
+        container.add_item(discord.ui.TextDisplay(f"## ✅ Team Created: {team_name}"))
+        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small, divider=True))
+        container.add_item(discord.ui.TextDisplay(
+            f"**Game:** {game}\n"
+            f"**Captain:** {team_captain.mention}\n"
+            f"**Role:** {team_role.mention}\n"
+            f"**Schedule Channel:** {team_schedule_channel.mention}\n"
+            f"**Request Channel:** {team_request_channel.mention}\n"
+            f"**Timezone:** {timezone}"
+        ))
+        card.add_item(container)
+        await interaction.response.send_message(view=card, ephemeral=True)
 
     @app_commands.command(name="list_teams", description="List all teams in this server.")
     @app_commands.describe(per_page="Number of teams per page (default 5, max 25)")
@@ -144,7 +168,11 @@ class TeamCog(commands.Cog):
                 guild_id,
                 f"Unauthorized list_teams attempt by {interaction.user} ({interaction.user.id})",
             )
-            await interaction.response.send_message("You do not have permission.", ephemeral=True)
+            await CommandResponse.error(
+                interaction,
+                "You do not have permission to list teams.",
+                hint="Only configured admin roles can use this command.",
+            )
             return
 
         current_server = get_server(guild_id)
@@ -154,7 +182,11 @@ class TeamCog(commands.Cog):
                 guild_id,
                 f"list_teams failed: bot not setup by {interaction.user} ({interaction.user.id})",
             )
-            await interaction.response.send_message("Bot not setup yet.", ephemeral=True)
+            await CommandResponse.error(
+                interaction,
+                "Server setup is incomplete.",
+                hint="Run /setup first.",
+            )
             return
 
         teams = current_server.get("teams", [])
@@ -164,7 +196,11 @@ class TeamCog(commands.Cog):
                 guild_id,
                 f"list_teams: no teams found by {interaction.user} ({interaction.user.id})",
             )
-            await interaction.response.send_message("No teams.", ephemeral=True)
+            await CommandResponse.info(
+                interaction,
+                "No teams are configured yet.",
+                hint="Use /create_team to add your first team.",
+            )
             return
 
         view = TeamListView(teams, interaction, per_page=per_page)
@@ -181,7 +217,11 @@ class TeamCog(commands.Cog):
                 guild_id,
                 f"Unauthorized delete_team attempt by {interaction.user} ({interaction.user.id})",
             )
-            await interaction.response.send_message("No permission.", ephemeral=True)
+            await CommandResponse.error(
+                interaction,
+                "You do not have permission to delete teams.",
+                hint="Only configured admin roles can use this command.",
+            )
             return
 
         current_server = get_server(guild_id)
@@ -192,7 +232,10 @@ class TeamCog(commands.Cog):
                 guild_id,
                 f"delete_team: no teams to delete by {interaction.user} ({interaction.user.id})",
             )
-            await interaction.response.send_message("No teams to delete.", ephemeral=True)
+            await CommandResponse.info(
+                interaction,
+                "There are no teams to delete.",
+            )
             return
 
         view = TeamDeleteView(teams)
@@ -209,7 +252,11 @@ class TeamCog(commands.Cog):
                 guild_id,
                 f"Unauthorized modify_team attempt by {interaction.user} ({interaction.user.id})",
             )
-            await interaction.response.send_message("No permission.", ephemeral=True)
+            await CommandResponse.error(
+                interaction,
+                "You do not have permission to modify teams.",
+                hint="Only configured admin roles can use this command.",
+            )
             return
 
         current_server = get_server(guild_id)
@@ -220,7 +267,11 @@ class TeamCog(commands.Cog):
                 guild_id,
                 f"modify_team: no teams found by {interaction.user} ({interaction.user.id})",
             )
-            await interaction.response.send_message("No teams found.", ephemeral=True)
+            await CommandResponse.info(
+                interaction,
+                "No teams are configured yet.",
+                hint="Use /create_team to add your first team.",
+            )
             return
 
         view = TeamModifyView(teams, interaction.guild, 0)
@@ -240,36 +291,59 @@ class TeamCog(commands.Cog):
         guild_id = str(interaction.guild_id)
         current_server = get_server(guild_id)
         if not is_setup_complete(guild_id):
-            await interaction.response.send_message("Bot not setup yet.", ephemeral=True)
+            await CommandResponse.error(
+                interaction,
+                "Server setup is incomplete.",
+                hint="Run /setup first.",
+            )
+            return
+
+        if not await validate_date_format(interaction, date):
             return
 
         teams = current_server.get("teams", [])
         if not teams:
-            await interaction.response.send_message("No teams found.", ephemeral=True)
+            await CommandResponse.info(
+                interaction,
+                "No teams are configured yet.",
+                hint="Use /create_team before requesting matches.",
+            )
             return
 
         requester_team = find_team_by_name(teams, requesting_team)
         receiver_team = find_team_by_name(teams, target_team)
 
         if requester_team is None:
-            await interaction.response.send_message("Requesting team not found.", ephemeral=True)
+            await CommandResponse.error(
+                interaction,
+                "Requesting team was not found.",
+                hint="Use an autocomplete option from the command list.",
+            )
             return
 
         if receiver_team is None:
-            await interaction.response.send_message("Target team not found.", ephemeral=True)
+            await CommandResponse.error(
+                interaction,
+                "Target team was not found.",
+                hint="Use an autocomplete option from the command list.",
+            )
             return
 
         if requester_team.get("team_name") == receiver_team.get("team_name"):
-            await interaction.response.send_message("You cannot request a match against the same team.", ephemeral=True)
+            await CommandResponse.warning(
+                interaction,
+                "You cannot request a match against the same team.",
+            )
             return
 
         user_roles = [role.id for role in interaction.user.roles]
         is_admin = CheckIfAdminRole(user_roles, guild_id)
         is_captain = interaction.user.id == int(requester_team.get("team_captain_id", 0))
         if not is_admin and not is_captain:
-            await interaction.response.send_message(
+            await CommandResponse.error(
+                interaction,
                 "You must be an admin or the requesting team's captain to do this.",
-                ephemeral=True,
+                hint="Ask your team captain or an admin to submit the request.",
             )
             return
 
@@ -281,9 +355,10 @@ class TeamCog(commands.Cog):
                 guild_id,
                 f"request_match failed: request channel missing for target team {receiver_team.get('team_name')}",
             )
-            await interaction.response.send_message(
+            await CommandResponse.error(
+                interaction,
                 "Target team has no valid match request channel configured.",
-                ephemeral=True,
+                hint="An admin can set it via /modify_team.",
             )
             return
 

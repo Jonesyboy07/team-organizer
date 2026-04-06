@@ -11,6 +11,7 @@ from utils.help_flow import HelpLayoutView
 class HelpCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        load_dotenv(dotenv_path=path.abspath(path.join(os.getcwd(), ".env")))
 
     @app_commands.command(name="quickstart", description="Show a quick getting-started guide.")
     async def quickstart_command(self, interaction: discord.Interaction):
@@ -51,7 +52,7 @@ class HelpCog(commands.Cog):
         load_dotenv(dotenv_path=path.abspath(path.join(os.getcwd(), ".env")))
         version = os.getenv("VERSION", "Unknown")
         await interaction.response.send_message(
-            f"Bot version: {version}", 
+            f"ℹ️ Bot version: **{version}**", 
             ephemeral= not CheckIfBotChannel(
                 interaction.channel_id, 
                 interaction.guild_id
@@ -62,7 +63,7 @@ class HelpCog(commands.Cog):
     async def ping_command(self, interaction: discord.Interaction):
         latency = self.bot.latency * 1000  # Convert to milliseconds
         await interaction.response.send_message(
-            f"Pong! Latency: {latency:.3f} ms",
+            f"🏓 Pong! Latency: **{latency:.3f} ms**",
             ephemeral= not CheckIfBotChannel(
                 interaction.channel_id,
                 interaction.guild_id
@@ -93,7 +94,7 @@ class HelpCog(commands.Cog):
     @app_commands.command(name="invite", description="Get the bot invite link")
     async def invite_command(self, interaction: discord.Interaction):
         await interaction.response.send_message(
-            f"Invite the bot using this link: {INVITE_LINK}",
+            f"ℹ️ Invite the bot using this link: {INVITE_LINK}",
             ephemeral= not CheckIfBotChannel(
                 interaction.channel_id,
                 interaction.guild_id

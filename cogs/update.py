@@ -1,17 +1,66 @@
 from discord.ext import commands
 from utils.funcs import ReadJSON
+from utils.command_docs import sync_commands_json
 import os
+from dotenv import load_dotenv
 
-OWNER_ID = int(os.getenv("OWNER_ID", "0"))
+
+def _owner_id() -> int:
+    load_dotenv()
+    try:
+        return int(os.getenv("OWNER_ID", "0"))
+    except ValueError:
+        return 0
 
 class UpdateCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    @commands.command(
+        name="sync_commands",
+        help="Owner only: globally sync slash commands to Discord.",
+    )
+    async def sync_commands(self, ctx):
+        owner_id = _owner_id()
+        if owner_id == 0:
+            await ctx.send("OWNER_ID is not configured. Set OWNER_ID in .env and restart the bot.")
+            return
+
+        if ctx.author.id != owner_id:
+            await ctx.send("You do not have permission to use this command.")
+            return
+
+        try:
+            synced = await self.bot.tree.sync()
+        except Exception as e:
+            await ctx.send(f"Command sync failed: {e}")
+            return
+
+        names = ", ".join(command.name for command in synced[:15])
+        extra = "" if len(synced) <= 15 else f" (+{len(synced) - 15} more)"
+        await ctx.send(f"Synced {len(synced)} slash command(s): {names}{extra}")
+
+    @commands.command(
+        name="refresh_help_docs",
+        help="Owner only: regenerate data/commands.json from currently loaded slash commands.",
+    )
+    async def refresh_help_docs(self, ctx):
+        owner_id = _owner_id()
+        if owner_id == 0:
+            await ctx.send("OWNER_ID is not configured. Set OWNER_ID in .env and restart the bot.")
+            return
+
+        if ctx.author.id != owner_id:
+            await ctx.send("You do not have permission to use this command.")
+            return
+
+        count = sync_commands_json(self.bot)
+        await ctx.send(f"Regenerated data/commands.json from {count} slash command(s).")
+
     @commands.command(name="update", help="Send the latest update from data/update.txt to all update logs channels in every server.")
     async def update(self, ctx):
         print("Update command invoked by user:", ctx.author.id)
-        if ctx.author.id != OWNER_ID:
+        if ctx.author.id != _owner_id():
             await ctx.send("You do not have permission to use this command.")
             return
 

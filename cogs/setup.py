@@ -2,34 +2,17 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
-from utils.funcs import CheckIfAdminRole, log_to_discord
+from utils.funcs import CheckIfAdminRole
 from utils.server_store import get_server, read_servers, set_server, write_servers
+from utils.command_helpers import (
+    CommandResponse,
+    log_command_execution,
+)
 
 
 class SetupCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-
-    async def _ensure_admin_role(self, interaction: discord.Interaction) -> bool:
-        guild_id = str(interaction.guild.id)
-        is_allowed = CheckIfAdminRole([role.id for role in interaction.user.roles], interaction.guild.id)
-        if not is_allowed:
-            await log_to_discord(
-                self.bot,
-                guild_id,
-                f"Unauthorized {interaction.command.name} attempt by {interaction.user} ({interaction.user.id})",
-            )
-            await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
-            return False
-        return True
-
-    async def _ensure_setup_complete(self, interaction: discord.Interaction, server_data: dict) -> bool:
-        guild_id = str(interaction.guild.id)
-        if not server_data.get("SetupComplete", False):
-            await log_to_discord(self.bot, guild_id, f"{interaction.command.name} failed: setup incomplete ({interaction.user.id})")
-            await interaction.response.send_message("Server is not set up yet. Please run /setup first.", ephemeral=True)
-            return False
-        return True
 
     @app_commands.command(name="setup", description="Set up the bot in this server.")
     @app_commands.checks.has_permissions(administrator=True)
@@ -44,10 +27,11 @@ class SetupCog(commands.Cog):
         guild_id = str(interaction.guild.id)
         existing = get_server(guild_id)
         if existing.get("SetupComplete", False):
-            await log_to_discord(self.bot, guild_id, f"Setup attempted but already completed by {interaction.user} ({interaction.user.id})")
-            await interaction.response.send_message(
-                "Setup has already been completed for this server. Use other commands to modify settings.",
-                ephemeral=True,
+            await log_command_execution(self.bot, guild_id, interaction.user, "setup", "ABORTED", "already completed")
+            await CommandResponse.warning(
+                interaction,
+                "Setup has already been completed for this server.",
+                hint="Use other commands to modify settings, or contact an admin to reset."
             )
             return
 
@@ -64,116 +48,136 @@ class SetupCog(commands.Cog):
             },
         )
 
-        await log_to_discord(self.bot, guild_id, f"Setup completed by {interaction.user} ({interaction.user.id})")
-        await interaction.response.send_message(
-            (
-                f"Setup complete! Channel(s): {command_channel.mention}, Admin role(s): {admin_role.mention}.\n\n"
-                "I recommend reviewing your Integrations command permissions so private commands are only visible to allowed users.\n\n"
-                "Use /addbotchannel and /addadminrole to extend access.\n"
-                "Use /removebotchannel and /removeadminrole to remove access.\n\n"
-                "Run /help to see commands and usage."
-            ),
-            ephemeral=True,
-        )
+        await log_command_execution(self.bot, guild_id, interaction.user, "setup", "completed", f"{command_channel.mention} / {admin_role.mention}")
 
-    async def _update_list_field(self, interaction: discord.Interaction, field_name: str, value: str, add: bool, mention: str):
+        card = discord.ui.LayoutView(timeout=180)
+        container = discord.ui.Container(accent_color=discord.Color.green())
+        container.add_item(discord.ui.TextDisplay("## ✅ Bot Setup Complete! 🎉"))
+        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small, divider=True))
+        container.add_item(discord.ui.TextDisplay(
+            f"**Command Channel:** {command_channel.mention}\n"
+            f"**Admin Role:** {admin_role.mention}\n"
+            f"**Update Logs:** {update_logs.mention}\n"
+            f"**Bot Logs:** {bot_logs.mention}"
+        ))
+        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small, divider=True))
+        container.add_item(discord.ui.TextDisplay(
+            "**Next Steps:**\n"
+            "• Review Integrations tab to limit command visibility to trusted users\n"
+            "• Use `/create_team` to add your first team\n"
+            "• Run `/help` to see all available commands"
+        ))
+        card.add_item(container)
+        await interaction.response.send_message(view=card, ephemeral=True)
+
+    async def _check_admin_role(self, interaction: discord.Interaction) -> bool:
+        """Check if user has admin role."""
         guild_id = str(interaction.guild.id)
-        if not await self._ensure_admin_role(interaction):
+        user_roles = [role.id for role in interaction.user.roles]
+        if not CheckIfAdminRole(user_roles, guild_id):
+            await CommandResponse.error(interaction, "You do not have permission.", hint="Admin role required.")
+            return False
+        return True
+
+    async def _check_setup_complete(self, interaction: discord.Interaction) -> bool:
+        """Check if server setup is complete."""
+        guild_id = str(interaction.guild.id)
+        if not get_server(guild_id).get("SetupComplete", False):
+            await CommandResponse.error(interaction, "Server is not set up yet.", hint="Run `/setup` first.")
+            return False
+        return True
+
+    async def _update_list_field(self, interaction: discord.Interaction, field_name: str, value: str, add: bool, field_label: str, mention: str):
+        guild_id = str(interaction.guild.id)
+        if not await self._check_admin_role(interaction):
+            return
+
+        if not await self._check_setup_complete(interaction):
             return
 
         server_data = get_server(guild_id)
-        if not await self._ensure_setup_complete(interaction, server_data):
-            return
-
         values = server_data.setdefault(field_name, [])
+        
         if add:
             if value in values:
-                await interaction.response.send_message(f"{mention} is already configured.", ephemeral=True)
+                await CommandResponse.warning(interaction, f"{field_label} {mention} is already configured.")
                 return
             values.append(value)
-            action = "added"
+            msg = f"Added {field_label} {mention}."
         else:
             if value not in values:
-                await interaction.response.send_message(f"{mention} is not configured.", ephemeral=True)
+                await CommandResponse.warning(interaction, f"{field_label} {mention} is not configured.")
                 return
             values.remove(value)
-            action = "removed"
+            msg = f"Removed {field_label} {mention}."
 
         set_server(guild_id, server_data)
-        await log_to_discord(
-            self.bot,
-            guild_id,
-            f"{field_name} value {value} {action} by {interaction.user} ({interaction.user.id})",
-        )
-        await interaction.response.send_message(f"{mention} has been {action}.", ephemeral=True)
+        await CommandResponse.success(interaction, msg)
 
-    @app_commands.command(name="addbotchannel", description="Add a bot channel.")
+    @app_commands.command(name="addbotchannel", description="Add a bot command channel.")
     async def add_bot_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
-        await self._update_list_field(interaction, "bot_channels", str(channel.id), True, channel.mention)
+        await self._update_list_field(interaction, "bot_channels", str(channel.id), True, "Bot Channel", channel.mention)
 
-    @app_commands.command(name="removebotchannel", description="Remove a bot channel.")
+    @app_commands.command(name="removebotchannel", description="Remove a bot command channel.")
     async def remove_bot_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
-        await self._update_list_field(interaction, "bot_channels", str(channel.id), False, channel.mention)
+        await self._update_list_field(interaction, "bot_channels", str(channel.id), False, "Bot Channel", channel.mention)
 
     @app_commands.command(name="addadminrole", description="Add an admin role.")
     async def add_admin_role(self, interaction: discord.Interaction, role: discord.Role):
-        await self._update_list_field(interaction, "admin_roles", str(role.id), True, role.mention)
+        await self._update_list_field(interaction, "admin_roles", str(role.id), True, "Admin Role", role.mention)
 
     @app_commands.command(name="removeadminrole", description="Remove an admin role.")
     async def remove_admin_role(self, interaction: discord.Interaction, role: discord.Role):
-        await self._update_list_field(interaction, "admin_roles", str(role.id), False, role.mention)
+        await self._update_list_field(interaction, "admin_roles", str(role.id), False, "Admin Role", role.mention)
 
     async def _list_config_field(self, interaction: discord.Interaction, field_name: str, title: str, mention_prefix: str):
+        """Display configured items in CV2 layout."""
         guild_id = str(interaction.guild.id)
-        if not await self._ensure_admin_role(interaction):
+        if not await self._check_admin_role(interaction):
             return
 
         server_data = get_server(guild_id)
-        if not await self._ensure_setup_complete(interaction, server_data):
+        if not await self._check_setup_complete(interaction):
             return
 
         values = server_data.get(field_name, [])
         if not values:
-            await interaction.response.send_message(f"No {title.lower()} are configured.", ephemeral=True)
+            await CommandResponse.info(interaction, f"No {title.lower()} are configured.", hint=f"Use commands to add {title.lower()}.")
             return
 
         lines = "\n".join(f"{mention_prefix}{value}>" for value in values)
         view = discord.ui.LayoutView(timeout=60)
         container = discord.ui.Container(accent_color=discord.Color.blurple())
-        container.add_item(discord.ui.TextDisplay(f"## {title}"))
+        container.add_item(discord.ui.TextDisplay(f"## {title}\n-# Total: {len(values)}"))
         container.add_item(discord.ui.TextDisplay(lines))
         view.add_item(container)
         await interaction.response.send_message(view=view, ephemeral=True)
 
-    @app_commands.command(name="listbotchannels", description="List all bot channels.")
+    @app_commands.command(name="listbotchannels", description="List all configured bot channels.")
     async def list_bot_channels(self, interaction: discord.Interaction):
         await self._list_config_field(interaction, "bot_channels", "Bot Channels", "<#")
 
-    @app_commands.command(name="listadminroles", description="List all admin roles.")
+    @app_commands.command(name="listadminroles", description="List all configured admin roles.")
     async def list_admin_roles(self, interaction: discord.Interaction):
         await self._list_config_field(interaction, "admin_roles", "Admin Roles", "<@&")
 
     @app_commands.command(name="setbotlogchannel", description="Set or change the bot logging channel.")
     async def set_bot_log_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         guild_id = str(interaction.guild.id)
-        if not await self._ensure_admin_role(interaction):
+        if not await self._check_admin_role(interaction):
+            return
+
+        if not await self._check_setup_complete(interaction):
             return
 
         data = read_servers()
-        server_data = data.get(guild_id, {"SetupComplete": False})
-        if not server_data.get("SetupComplete", False):
-            await log_to_discord(self.bot, guild_id, f"setbotlogchannel failed: setup incomplete ({interaction.user.id})")
-            await interaction.response.send_message("Server is not set up yet. Please run /setup first.", ephemeral=True)
-            return
-
-        old_channel = server_data.get("bot_logs_channel")
+        server_data = data.get(guild_id, {})
         server_data["bot_logs_channel"] = str(channel.id)
         data[guild_id] = server_data
         write_servers(data)
 
-        await log_to_discord(
-            self.bot,
-            guild_id,
-            f"Bot log channel changed from {old_channel} to {channel.id} by {interaction.user} ({interaction.user.id})",
-        )
-        await interaction.response.send_message(f"Bot log channel set to {channel.mention}.", ephemeral=True)
+        await CommandResponse.success(interaction, f"Bot log channel updated to {channel.mention}.")
+
+
+async def setup(bot: commands.Bot):
+    await bot.add_cog(SetupCog(bot))

@@ -6,6 +6,7 @@ import os
 import json
 
 from utils.event_flow import EventRSVPLayoutView
+from utils.command_helpers import CommandResponse, validate_date_format
 from utils.funcs import log_to_discord
 from utils.server_store import get_teams
 from utils.team_service import build_team_name_choices, find_team_by_name, resolve_team_timezone
@@ -60,7 +61,14 @@ class EventCog(commands.Cog):
                 guild_id,
                 f"Event creation failed: team '{team_name}' not found by {interaction.user} ({interaction.user.id})",
             )
-            await interaction.response.send_message("Team not found.", ephemeral=True)
+            await CommandResponse.error(
+                interaction,
+                "Team was not found.",
+                hint="Use an autocomplete option from /event team_name.",
+            )
+            return
+
+        if not await validate_date_format(interaction, date):
             return
 
         tz_label = team.get("timezone", "UTC")
@@ -68,9 +76,10 @@ class EventCog(commands.Cog):
 
         normalized_time = time.strip().replace(":", "")
         if not normalized_time.isdigit() or len(normalized_time) not in {3, 4}:
-            await interaction.response.send_message(
-                "Invalid time format. Use hhmm in 24-hour time, for example `0930` or `1730`.",
-                ephemeral=True,
+            await CommandResponse.error(
+                interaction,
+                "Invalid time format.",
+                hint="Use hhmm in 24-hour time, for example 0930 or 1730.",
             )
             return
         normalized_time = normalized_time.zfill(4)
@@ -86,9 +95,10 @@ class EventCog(commands.Cog):
                 guild_id,
                 f"Event creation failed: invalid date/time format by {interaction.user} ({interaction.user.id})",
             )
-            await interaction.response.send_message(
-                "Invalid date or time format. Date must be YYYY-MM-DD, time must be hhmm (24hr).",
-                ephemeral=True,
+            await CommandResponse.error(
+                interaction,
+                "Date or time could not be parsed.",
+                hint="Use date YYYY-MM-DD and time hhmm (24-hour).",
             )
             return
 
@@ -102,9 +112,10 @@ class EventCog(commands.Cog):
                 guild_id,
                 f"Event creation failed: schedule channel not found for team '{team_name}' by {interaction.user} ({interaction.user.id})",
             )
-            await interaction.response.send_message(
-                "Team schedule channel not found. Please notify a server admin to check.",
-                ephemeral=True,
+            await CommandResponse.error(
+                interaction,
+                "Team schedule channel was not found.",
+                hint="Ask an admin to fix the team schedule channel in /modify_team.",
             )
             return
 
@@ -141,7 +152,10 @@ class EventCog(commands.Cog):
             guild_id,
             f"Event '{event_name}' created for team '{team_name}' by {interaction.user} ({interaction.user.id}) in channel {channel.mention}",
         )
-        await interaction.response.send_message(f"Event created in {channel.mention}", ephemeral=True)
+        await CommandResponse.success(
+            interaction,
+            f"Event card created in {channel.mention}.",
+        )
 
 
 async def setup(bot):

@@ -1,6 +1,7 @@
 import discord
 
 from utils.funcs import log_to_discord
+from utils.command_helpers import CommandResponse
 
 ATTEND_EMOJI = "✅"
 MAYBE_EMOJI = "🤔"
@@ -82,7 +83,7 @@ class EventRSVPLayoutView(discord.ui.LayoutView):
         events = self.event_cog.load_events(self.guild_id)
         event_data = events.get(str(self.message_id))
         if not event_data:
-            await interaction.response.send_message("This event is no longer available.", ephemeral=True)
+            await CommandResponse.error(interaction, "This event is no longer available.")
             return
 
         ensure_event_lists(event_data)
@@ -97,7 +98,7 @@ class EventRSVPLayoutView(discord.ui.LayoutView):
         self.refresh_content(event_data)
 
         await interaction.response.edit_message(view=self)
-        await interaction.followup.send(f"You've RSVP'd as **{label}**.", ephemeral=True)
+        await CommandResponse.followup_success(interaction, f"You've RSVP'd as **{label}**.")
 
         await log_to_discord(
             self.event_cog.bot,
@@ -109,7 +110,7 @@ class EventRSVPLayoutView(discord.ui.LayoutView):
         events = self.event_cog.load_events(self.guild_id)
         event_data = events.get(str(self.message_id))
         if not event_data:
-            await interaction.response.send_message("This event is no longer available.", ephemeral=True)
+            await CommandResponse.error(interaction, "This event is no longer available.")
             return
 
         ensure_event_lists(event_data)
@@ -126,11 +127,11 @@ class EventRSVPLayoutView(discord.ui.LayoutView):
 
         await interaction.response.edit_message(view=self)
         if removed:
-            await interaction.followup.send("Your attendance has been removed.", ephemeral=True)
+            await CommandResponse.followup_success(interaction, "Your attendance has been removed.")
             await log_to_discord(
                 self.event_cog.bot,
                 self.guild_id,
                 f"{interaction.user} ({interaction.user.id}) removed attendance for event {event_data.get('event_name', '')}",
             )
         else:
-            await interaction.followup.send("You were not signed up for this event.", ephemeral=True)
+            await CommandResponse.followup_info(interaction, "You were not signed up for this event.")

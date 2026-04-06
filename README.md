@@ -1,105 +1,171 @@
-# 🎮 **Game Schedule Bot**
+# Game Schedule Bot
 
-A powerful, open-source Discord bot for scheduling games and events within your teams!
+A Discord bot for running team scheduling workflows with cleaner command UX and Component V2 cards.
 
----
+## What This Bot Does
 
-## 🚀 **Features**
+- Server setup in one flow
+- Team management for multiple teams per server
+- Weekly scheduling prompts
+- Event RSVP cards with timezone-aware times
+- Match request workflow between teams
+- Built-in quickstart and help commands
 
-✨ **Easy Setup:** Server administrators can quickly set up the bot with a single command.  
-🗓️ **Team Scheduling:** Create, manage, and RSVP to team events with timezone support.  
-👥 **Multi-Team Support:** You can have **multiple teams per server** thanks to the way the bot handles teams, allowing you to run an entire organisation with ease.  
-❓ **Help System:** Built-in help command with detailed usage for every feature.  
-🔓 **Open Source:** Freely clone, modify, and contribute!  
-💸 **No Paywalls:** 100% free to use. [Support development on Ko-Fi!](https://ko-fi.com/jonesy_alr)
+## Fast Start (5 Minutes)
 
----
+1. Clone the repository.
 
-## 📦 **Installation & Usage**
-
-### 🖥️ Windows Setup
-
-1. **Clone/Download** this repository:
-   ```powershell
+   Windows:
    git clone https://github.com/Jonesyboy07/team-organizer.git
-   ```
-2. **Install dependencies:**
-   ```powershell
+
+   Linux or macOS:
+   git clone https://github.com/Jonesyboy07/team-organizer.git
+
+2. Install dependencies.
+
+   Windows:
    py -m pip install -r requirements.txt
-   ```
-3. **Configure environment:**
-   - Edit `.env.example` and rename to `.env`.
-4. **Prepare data files:**
-   ```powershell
+
+   Linux or macOS:
+   python -m pip install -r requirements.txt
+
+3. Create a .env file in the project root.
+
+   Required values:
+   DISCORD_TOKEN=your_bot_token
+   DISCORD_CLIENT_ID=your_application_id
+
+   Optional values:
+   PREFIX=!
+   OWNER_ID=your_discord_user_id
+
+4. Initialize data files.
+
+   Windows:
    py prereq.py
-   ```
-5. **Customize commands:**
-   - Edit `data/commands.json` for your project needs.
-   - You will still need to edit the code to add more commands. This is just for the help command.
-6. **Run the bot:**
-   ```powershell
-   py main.py
-   ```
 
-### 🐧 Linux/Mac Setup
-
-1. **Clone/Download** this repository:
-   ```sh
-   git clone https://github.com/Jonesyboy07/team-organizer.git
-   ```
-2. **Install dependencies:**
-   ```sh
-   pip install -r requirements.txt
-   ```
-3. **Configure environment:**
-   - Edit `.env.example` and rename to `.env`.
-4. **Prepare data files:**
-   ```sh
+   Linux or macOS:
    python prereq.py
-   ```
-5. **Customize commands:**
-   - Edit `data/commands.json` for your project needs.
-6. **Run the bot:**
-   ```sh
+
+5. Start the bot.
+
+   Windows:
+   py main.py
+
+   Linux or macOS:
    python main.py
-   ```
 
----
+## Walkthrough: Server Admin First Setup
 
-## 💡 **Notes**
+Use this flow on a fresh server.
 
-- Most of this code is handwritten. AI was used to:
-  - 🛠️ Fix errors
-  - ⚡ Implement complex features
-  - 🚀 Streamline important parts
+1. Run /setup.
 
-- The project is open for suggestions and contributions!
+   You will provide:
+   - Command channel
+   - Admin role
+   - Update logs channel
+   - Bot logs channel
 
----
+2. Verify config.
 
-## 🤝 **Contributing**
+   Run:
+   - /listbotchannels
+   - /listadminroles
 
-Want to add features or fix bugs?  
-**Fork** the repo, make your changes, and submit a **pull request**!  
-Please keep original creditation somewhere in your version.
+3. Create your first team.
 
----
+   Run /create_team and set:
+   - Team name
+   - Game
+   - Team captain
+   - Team role
+   - Schedule channel
+   - Match request channel
+   - Timezone
 
-## 💬 **Suggestions & Support**
+4. Test scheduling.
 
-- [Open an Issue](https://github.com/Jonesyboy07/team-organizer/issues) for feature requests or bug reports.
-- [Support on Ko-Fi](https://ko-fi.com/jonesy_alr) if you’d like to help out!
+   Run /send_schedule and choose a team.
 
----
+5. Test events.
 
-## 📝 **License & Credit**
+   Run /event with:
+   - team_name
+   - date (YYYY-MM-DD)
+   - time (hhmm in 24-hour format, example 1930)
+   - event_name
 
-This project is open source and free to use.  
-If you fork or use this bot, please keep credit to the original author.
+## Walkthrough: Team Captain Weekly Flow
 
----
+1. Run /my_teams to confirm your linked teams.
+2. Run /send_schedule each week if you want a manual push.
+3. Run /request_match to send match requests.
+4. Run /event to create RSVP cards for scrims, officials, or practices.
+5. Use /help or /quickstart when teammates need command guidance.
 
-<div align="center">
+## Command Map
 
-**Thank you for checking out Game Schedule Bot!**  
-Made with ❤️ for the Discord gaming community.
+Setup and configuration:
+- /setup
+- /addbotchannel
+- /removebotchannel
+- /addadminrole
+- /removeadminrole
+- /listbotchannels
+- /listadminroles
+- /setbotlogchannel
+
+Team and match operations:
+- /my_teams
+- /create_team
+- /list_teams
+- /modify_team
+- /delete_team
+- /request_match
+
+Scheduling and events:
+- /send_schedule
+- /event
+
+Help and utility:
+- /quickstart
+- /help
+- /version
+- /ping
+- /info
+- /invite
+- /stats
+
+Owner-only text command:
+- update (prefix command, defaults to !update unless PREFIX is changed)
+
+## Data Files
+
+- data/servers.json stores per-server config, roles, channels, and teams.
+- data/events stores RSVP event state by guild.
+- data/commands.json powers help content.
+
+## Troubleshooting
+
+- Commands not appearing:
+  - Ensure DISCORD_CLIENT_ID is correct.
+  - Restart the bot and wait for command sync logs.
+
+- Permission errors:
+  - Confirm your role is in admin roles via /listadminroles.
+  - Confirm you are a configured team captain where needed.
+
+- Event or schedule channel errors:
+  - Check team channels with /modify_team.
+
+## Contributing
+
+Pull requests and issues are welcome.
+
+- Issues: https://github.com/Jonesyboy07/team-organizer/issues
+- Support: https://ko-fi.com/jonesy_alr
+
+## Credit
+
+If you fork or reuse this project, keep credit to the original author.
