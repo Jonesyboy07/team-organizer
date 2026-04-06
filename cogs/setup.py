@@ -1,418 +1,179 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from utils.funcs import CheckIfAdminRole, ReadJSON, WriteJSON, log_to_discord
+
+from utils.funcs import CheckIfAdminRole, log_to_discord
+from utils.server_store import get_server, read_servers, set_server, write_servers
 
 
 class SetupCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    async def _ensure_admin_role(self, interaction: discord.Interaction) -> bool:
+        guild_id = str(interaction.guild.id)
+        is_allowed = CheckIfAdminRole([role.id for role in interaction.user.roles], interaction.guild.id)
+        if not is_allowed:
+            await log_to_discord(
+                self.bot,
+                guild_id,
+                f"Unauthorized {interaction.command.name} attempt by {interaction.user} ({interaction.user.id})",
+            )
+            await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+            return False
+        return True
+
+    async def _ensure_setup_complete(self, interaction: discord.Interaction, server_data: dict) -> bool:
+        guild_id = str(interaction.guild.id)
+        if not server_data.get("SetupComplete", False):
+            await log_to_discord(self.bot, guild_id, f"{interaction.command.name} failed: setup incomplete ({interaction.user.id})")
+            await interaction.response.send_message("Server is not set up yet. Please run /setup first.", ephemeral=True)
+            return False
+        return True
+
     @app_commands.command(name="setup", description="Set up the bot in this server.")
     @app_commands.checks.has_permissions(administrator=True)
     async def setup_command(
-        self, 
-        interaction: discord.Interaction, 
-        command_channel: discord.TextChannel, 
+        self,
+        interaction: discord.Interaction,
+        command_channel: discord.TextChannel,
         admin_role: discord.Role,
         update_logs: discord.TextChannel,
-        bot_logs: discord.TextChannel
+        bot_logs: discord.TextChannel,
     ):
-        GuildID = str(interaction.guild.id)
-        BotChannel = str(command_channel.id)
-        AdminRole = str(admin_role.id)
-        UpdateLogsChannel = str(update_logs.id)
-        
-        # Load existing server data
-        filename = "data/servers.json"
-        try:
-            data = ReadJSON(filename)
-        except FileNotFoundError:
-            data = {}
-
-        # Only allow setup if SetupComplete is not True
-        if GuildID in data and data[GuildID].get("SetupComplete", False):
-            await log_to_discord(self.bot, GuildID, f"Setup attempted but already completed by {interaction.user} ({interaction.user.id})")
-            return await interaction.response.send_message(
+        guild_id = str(interaction.guild.id)
+        existing = get_server(guild_id)
+        if existing.get("SetupComplete", False):
+            await log_to_discord(self.bot, guild_id, f"Setup attempted but already completed by {interaction.user} ({interaction.user.id})")
+            await interaction.response.send_message(
                 "Setup has already been completed for this server. Use other commands to modify settings.",
-                ephemeral=True
+                ephemeral=True,
             )
+            return
 
-        # Perform setup
-        data[GuildID] = {
-            "bot_channels": [BotChannel],
-            "admin_roles": [AdminRole],
-            "update_logs_channel": UpdateLogsChannel,
-            "bot_logs_channel": bot_logs.id,
-            "leagues": [],
-            "teams": [],
-            "SetupComplete": True
-        }
-
-        # Save updated data
-        WriteJSON(data, filename, indent=4)
-
-        await log_to_discord(self.bot, GuildID, f"Setup completed by {interaction.user} ({interaction.user.id})")
-
-        await interaction.response.send_message(
-            f"""Setup complete! Channel(s): <#{BotChannel}> ({BotChannel}), Admin role(s): <@&{AdminRole}>.
-
-I now recommend going to your server's 'Integrations' tab and disabling some commands for the '@everyone' role, so that only permitted users can see private commands.
-
-You can add more bot channels with /addbotchannel and more admin roles with /addadminrole.
-
-You can also remove them with /removebotchannel and /removeadminrole.
-
-Run /help to see a list of commands and how to utilize them.""",
-            ephemeral=True
+        set_server(
+            guild_id,
+            {
+                "bot_channels": [str(command_channel.id)],
+                "admin_roles": [str(admin_role.id)],
+                "update_logs_channel": str(update_logs.id),
+                "bot_logs_channel": str(bot_logs.id),
+                "leagues": [],
+                "teams": [],
+                "SetupComplete": True,
+            },
         )
-        
+
+        await log_to_discord(self.bot, guild_id, f"Setup completed by {interaction.user} ({interaction.user.id})")
+        await interaction.response.send_message(
+            (
+                f"Setup complete! Channel(s): {command_channel.mention}, Admin role(s): {admin_role.mention}.\n\n"
+                "I recommend reviewing your Integrations command permissions so private commands are only visible to allowed users.\n\n"
+                "Use /addbotchannel and /addadminrole to extend access.\n"
+                "Use /removebotchannel and /removeadminrole to remove access.\n\n"
+                "Run /help to see commands and usage."
+            ),
+            ephemeral=True,
+        )
+
+    async def _update_list_field(self, interaction: discord.Interaction, field_name: str, value: str, add: bool, mention: str):
+        guild_id = str(interaction.guild.id)
+        if not await self._ensure_admin_role(interaction):
+            return
+
+        server_data = get_server(guild_id)
+        if not await self._ensure_setup_complete(interaction, server_data):
+            return
+
+        values = server_data.setdefault(field_name, [])
+        if add:
+            if value in values:
+                await interaction.response.send_message(f"{mention} is already configured.", ephemeral=True)
+                return
+            values.append(value)
+            action = "added"
+        else:
+            if value not in values:
+                await interaction.response.send_message(f"{mention} is not configured.", ephemeral=True)
+                return
+            values.remove(value)
+            action = "removed"
+
+        set_server(guild_id, server_data)
+        await log_to_discord(
+            self.bot,
+            guild_id,
+            f"{field_name} value {value} {action} by {interaction.user} ({interaction.user.id})",
+        )
+        await interaction.response.send_message(f"{mention} has been {action}.", ephemeral=True)
+
     @app_commands.command(name="addbotchannel", description="Add a bot channel.")
-    async def add_bot_channel(
-        self,
-        interaction: discord.Interaction,
-        channel: discord.TextChannel
-    ):
-        GuildID = str(interaction.guild.id)
-        ChannelID = str(channel.id)
-
-        # Check if user has admin role
-        if not CheckIfAdminRole([role.id for role in interaction.user.roles], interaction.guild.id):
-            await log_to_discord(self.bot, GuildID, f"Unauthorized addbotchannel attempt by {interaction.user} ({interaction.user.id})")
-            return await interaction.response.send_message(
-                "You do not have permission to use this command.",
-                ephemeral=True
-            )
-
-        # Load existing server data
-        filename = "data/servers.json"
-        try:
-            data = ReadJSON(filename)
-        except FileNotFoundError:
-            await log_to_discord(self.bot, GuildID, f"addbotchannel failed: server not set up ({interaction.user.id})")
-            return await interaction.response.send_message(
-                "Server is not set up yet. Please run /setup first.",
-                ephemeral=True
-            )
-
-        if GuildID not in data or not data[GuildID].get("SetupComplete", False):
-            await log_to_discord(self.bot, GuildID, f"addbotchannel failed: setup incomplete ({interaction.user.id})")
-            return await interaction.response.send_message(
-                "Server is not set up yet. Please run /setup first.",
-                ephemeral=True
-            )
-
-        if ChannelID in data[GuildID]["bot_channels"]:
-            await log_to_discord(self.bot, GuildID, f"addbotchannel: channel already exists ({ChannelID}) by {interaction.user.id}")
-            return await interaction.response.send_message(
-                f"Channel <#{ChannelID}> is already a bot channel.",
-                ephemeral=True
-            )
-
-        data[GuildID]["bot_channels"].append(ChannelID)
-
-        # Save updated data
-        WriteJSON(data, filename, indent=4)
-
-        await log_to_discord(self.bot, GuildID, f"Bot channel <#{ChannelID}> added by {interaction.user} ({interaction.user.id})")
-
-        await interaction.response.send_message(
-            f"Channel <#{ChannelID}> has been added as a bot channel.",
-            ephemeral=True
-        )
+    async def add_bot_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        await self._update_list_field(interaction, "bot_channels", str(channel.id), True, channel.mention)
 
     @app_commands.command(name="removebotchannel", description="Remove a bot channel.")
-    async def remove_bot_channel(
-        self,
-        interaction: discord.Interaction,
-        channel: discord.TextChannel
-    ):
-        GuildID = str(interaction.guild.id)
-        ChannelID = str(channel.id)
+    async def remove_bot_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        await self._update_list_field(interaction, "bot_channels", str(channel.id), False, channel.mention)
 
-        # Check if user has admin role
-        if not CheckIfAdminRole([role.id for role in interaction.user.roles], interaction.guild.id):
-            await log_to_discord(self.bot, GuildID, f"Unauthorized removebotchannel attempt by {interaction.user} ({interaction.user.id})")
-            return await interaction.response.send_message(
-                "You do not have permission to use this command.",
-                ephemeral=True
-            )
+    @app_commands.command(name="addadminrole", description="Add an admin role.")
+    async def add_admin_role(self, interaction: discord.Interaction, role: discord.Role):
+        await self._update_list_field(interaction, "admin_roles", str(role.id), True, role.mention)
 
-        # Load existing server data
-        filename = "data/servers.json"
-        try:
-            data = ReadJSON(filename)
-        except FileNotFoundError:
-            await log_to_discord(self.bot, GuildID, f"removebotchannel failed: server not set up ({interaction.user.id})")
-            return await interaction.response.send_message(
-                "Server is not set up yet. Please run /setup first.",
-                ephemeral=True
-            )
+    @app_commands.command(name="removeadminrole", description="Remove an admin role.")
+    async def remove_admin_role(self, interaction: discord.Interaction, role: discord.Role):
+        await self._update_list_field(interaction, "admin_roles", str(role.id), False, role.mention)
 
-        if GuildID not in data or not data[GuildID].get("SetupComplete", False):
-            await log_to_discord(self.bot, GuildID, f"removebotchannel failed: setup incomplete ({interaction.user.id})")
-            return await interaction.response.send_message(
-                "Server is not set up yet. Please run /setup first.",
-                ephemeral=True
-            )
+    async def _list_config_field(self, interaction: discord.Interaction, field_name: str, title: str, mention_prefix: str):
+        guild_id = str(interaction.guild.id)
+        if not await self._ensure_admin_role(interaction):
+            return
 
-        if ChannelID not in data[GuildID]["bot_channels"]:
-            await log_to_discord(self.bot, GuildID, f"removebotchannel: channel not found ({ChannelID}) by {interaction.user.id}")
-            return await interaction.response.send_message(
-                f"Channel <#{ChannelID}> is not a bot channel.",
-                ephemeral=True
-            )
+        server_data = get_server(guild_id)
+        if not await self._ensure_setup_complete(interaction, server_data):
+            return
 
-        data[GuildID]["bot_channels"].remove(ChannelID)
+        values = server_data.get(field_name, [])
+        if not values:
+            await interaction.response.send_message(f"No {title.lower()} are configured.", ephemeral=True)
+            return
 
-        # Save updated data
-        WriteJSON(data, filename, indent=4)
+        lines = "\n".join(f"{mention_prefix}{value}>" for value in values)
+        view = discord.ui.LayoutView(timeout=60)
+        container = discord.ui.Container(accent_color=discord.Color.blurple())
+        container.add_item(discord.ui.TextDisplay(f"## {title}"))
+        container.add_item(discord.ui.TextDisplay(lines))
+        view.add_item(container)
+        await interaction.response.send_message(view=view, ephemeral=True)
 
-        await log_to_discord(self.bot, GuildID, f"Bot channel <#{ChannelID}> removed by {interaction.user} ({interaction.user.id})")
-
-        await interaction.response.send_message(
-            f"Channel <#{ChannelID}> has been removed from bot channels.",
-            ephemeral=True
-        )
-        
     @app_commands.command(name="listbotchannels", description="List all bot channels.")
     async def list_bot_channels(self, interaction: discord.Interaction):
-        GuildID = str(interaction.guild.id)
-        # Check if user has admin role
-        if not CheckIfAdminRole([role.id for role in interaction.user.roles], interaction.guild.id):
-            await log_to_discord(self.bot, GuildID, f"Unauthorized listbotchannels attempt by {interaction.user} ({interaction.user.id})")
-            return await interaction.response.send_message(
-                "You do not have permission to use this command.",
-                ephemeral=True
-            )
-        
-        # Load existing server data
-        filename = "data/servers.json"
-        try:
-            data = ReadJSON(filename)
-        except FileNotFoundError:
-            await log_to_discord(self.bot, GuildID, f"listbotchannels failed: server not set up ({interaction.user.id})")
-            return await interaction.response.send_message(
-                "Server is not set up yet. Please run /setup first.",
-                ephemeral=True
-            )
+        await self._list_config_field(interaction, "bot_channels", "Bot Channels", "<#")
 
-        if GuildID not in data or not data[GuildID].get("SetupComplete", False):
-            await log_to_discord(self.bot, GuildID, f"listbotchannels failed: setup incomplete ({interaction.user.id})")
-            return await interaction.response.send_message(
-                "Server is not set up yet. Please run /setup first.",
-                ephemeral=True
-            )
-
-        bot_channels = data[GuildID].get("bot_channels", [])
-        if not bot_channels:
-            await log_to_discord(self.bot, GuildID, f"listbotchannels: no bot channels set by {interaction.user.id}")
-            return await interaction.response.send_message(
-                "No bot channels have been set.",
-                ephemeral=True
-            )
-
-        channel_mentions = [f"<#{ch}>" for ch in bot_channels]
-        await log_to_discord(self.bot, GuildID, f"Bot channels listed by {interaction.user} ({interaction.user.id})")
-        await interaction.response.send_message(
-            "Bot Channels:\n" + "\n".join(channel_mentions),
-            ephemeral=True
-        )
-        
     @app_commands.command(name="listadminroles", description="List all admin roles.")
     async def list_admin_roles(self, interaction: discord.Interaction):
-        GuildID = str(interaction.guild.id)
-        # Check if user has admin role
-        if not CheckIfAdminRole([role.id for role in interaction.user.roles], interaction.guild.id):
-            await log_to_discord(self.bot, GuildID, f"Unauthorized listadminroles attempt by {interaction.user} ({interaction.user.id})")
-            return await interaction.response.send_message(
-                "You do not have permission to use this command.",
-                ephemeral=True
-            )
-        
-        # Load existing server data
-        filename = "data/servers.json"
-        try:
-            data = ReadJSON(filename)
-        except FileNotFoundError:
-            await log_to_discord(self.bot, GuildID, f"listadminroles failed: server not set up ({interaction.user.id})")
-            return await interaction.response.send_message(
-                "Server is not set up yet. Please run /setup first.",
-                ephemeral=True
-            )
+        await self._list_config_field(interaction, "admin_roles", "Admin Roles", "<@&")
 
-        if GuildID not in data or not data[GuildID].get("SetupComplete", False):
-            await log_to_discord(self.bot, GuildID, f"listadminroles failed: setup incomplete ({interaction.user.id})")
-            return await interaction.response.send_message(
-                "Server is not set up yet. Please run /setup first.",
-                ephemeral=True
-            )
-
-        admin_roles = data[GuildID].get("admin_roles", [])
-        if not admin_roles:
-            await log_to_discord(self.bot, GuildID, f"listadminroles: no admin roles set by {interaction.user.id}")
-            return await interaction.response.send_message(
-                "No admin roles have been set.",
-                ephemeral=True
-            )
-
-        role_mentions = [f"<@&{role}>" for role in admin_roles]
-        await log_to_discord(self.bot, GuildID, f"Admin roles listed by {interaction.user} ({interaction.user.id})")
-        await interaction.response.send_message(
-            "Admin Roles:\n" + "\n".join(role_mentions),
-            ephemeral=True
-        )
-        
-    @app_commands.command(name="addadminrole", description="Add an admin role.")
-    async def add_admin_role(
-        self,
-        interaction: discord.Interaction,
-        role: discord.Role
-    ):
-        GuildID = str(interaction.guild.id)
-        RoleID = str(role.id)
-
-        # Check if user has admin role
-        if not CheckIfAdminRole([role.id for role in interaction.user.roles], interaction.guild.id):
-            await log_to_discord(self.bot, GuildID, f"Unauthorized addadminrole attempt by {interaction.user} ({interaction.user.id})")
-            return await interaction.response.send_message(
-                "You do not have permission to use this command.",
-                ephemeral=True
-            )
-
-        # Load existing server data
-        filename = "data/servers.json"
-        try:
-            data = ReadJSON(filename)
-        except FileNotFoundError:
-            await log_to_discord(self.bot, GuildID, f"addadminrole failed: server not set up ({interaction.user.id})")
-            return await interaction.response.send_message(
-                "Server is not set up yet. Please run /setup first.",
-                ephemeral=True
-            )
-
-        if GuildID not in data or not data[GuildID].get("SetupComplete", False):
-            await log_to_discord(self.bot, GuildID, f"addadminrole failed: setup incomplete ({interaction.user.id})")
-            return await interaction.response.send_message(
-                "Server is not set up yet. Please run /setup first.",
-                ephemeral=True
-            )
-
-        if RoleID in data[GuildID]["admin_roles"]:
-            await log_to_discord(self.bot, GuildID, f"addadminrole: role already exists ({RoleID}) by {interaction.user.id}")
-            return await interaction.response.send_message(
-                f"Role <@&{RoleID}> is already an admin role.",
-                ephemeral=True
-            )
-
-        data[GuildID]["admin_roles"].append(RoleID)
-
-        WriteJSON(data, filename, indent=4)
-
-        await log_to_discord(self.bot, GuildID, f"Admin role <@&{RoleID}> added by {interaction.user} ({interaction.user.id})")
-
-        await interaction.response.send_message(
-            f"Role <@&{RoleID}> has been added as an admin role.",
-            ephemeral=True
-        )
-        
-    @app_commands.command(name="removeadminrole", description="Remove an admin role.")
-    async def remove_admin_role(
-        self,
-        interaction: discord.Interaction,
-        role: discord.Role
-    ):
-        GuildID = str(interaction.guild.id)
-        RoleID = str(role.id)
-
-        # Check if user has admin role
-        if not CheckIfAdminRole([role.id for role in interaction.user.roles], interaction.guild.id):
-            await log_to_discord(self.bot, GuildID, f"Unauthorized removeadminrole attempt by {interaction.user} ({interaction.user.id})")
-            return await interaction.response.send_message(
-                "You do not have permission to use this command.",
-                ephemeral=True
-            )
-
-        # Load existing server data
-        filename = "data/servers.json"
-        try:
-            data = ReadJSON(filename)
-        except FileNotFoundError:
-            await log_to_discord(self.bot, GuildID, f"removeadminrole failed: server not set up ({interaction.user.id})")
-            return await interaction.response.send_message(
-                "Server is not set up yet. Please run /setup first.",
-                ephemeral=True
-            )
-
-        if GuildID not in data or not data[GuildID].get("SetupComplete", False):
-            await log_to_discord(self.bot, GuildID, f"removeadminrole failed: setup incomplete ({interaction.user.id})")
-            return await interaction.response.send_message(
-                "Server is not set up yet. Please run /setup first.",
-                ephemeral=True
-            )
-
-        if RoleID not in data[GuildID]["admin_roles"]:
-            await log_to_discord(self.bot, GuildID, f"removeadminrole: role not found ({RoleID}) by {interaction.user.id}")
-            return await interaction.response.send_message(
-                f"Role <@&{RoleID}> is not an admin role.",
-                ephemeral=True
-            )
-
-        data[GuildID]["admin_roles"].remove(RoleID)
-
-        # Save updated data
-        WriteJSON(data, filename, indent=4)
-
-        await log_to_discord(self.bot, GuildID, f"Admin role <@&{RoleID}> removed by {interaction.user} ({interaction.user.id})")
-
-        await interaction.response.send_message(
-            f"Role <@&{RoleID}> has been removed from admin roles.",
-            ephemeral=True
-        )
-        
     @app_commands.command(name="setbotlogchannel", description="Set or change the bot logging channel.")
-    async def set_bot_log_channel(
-        self,
-        interaction: discord.Interaction,
-        channel: discord.TextChannel
-    ):
-        GuildID = str(interaction.guild.id)
-        # Check if user has admin role
-        if not CheckIfAdminRole([role.id for role in interaction.user.roles], interaction.guild.id):
-            await log_to_discord(self.bot, GuildID, f"Unauthorized setbotlogchannel attempt by {interaction.user} ({interaction.user.id})")
-            return await interaction.response.send_message(
-                "You do not have permission to use this command.",
-                ephemeral=True
-            )
+    async def set_bot_log_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        guild_id = str(interaction.guild.id)
+        if not await self._ensure_admin_role(interaction):
+            return
 
-        filename = "data/servers.json"
-        try:
-            data = ReadJSON(filename)
-        except FileNotFoundError:
-            data = {}
+        data = read_servers()
+        server_data = data.get(guild_id, {"SetupComplete": False})
+        if not server_data.get("SetupComplete", False):
+            await log_to_discord(self.bot, guild_id, f"setbotlogchannel failed: setup incomplete ({interaction.user.id})")
+            await interaction.response.send_message("Server is not set up yet. Please run /setup first.", ephemeral=True)
+            return
 
-        # If server not setup, create minimal entry
-        if GuildID not in data:
-            data[GuildID] = {"SetupComplete": False}
+        old_channel = server_data.get("bot_logs_channel")
+        server_data["bot_logs_channel"] = str(channel.id)
+        data[guild_id] = server_data
+        write_servers(data)
 
-        # If bot_logs_channel key doesn't exist, create it
-        if "bot_logs_channel" not in data[GuildID]:
-            data[GuildID]["bot_logs_channel"] = None
-
-        if not data[GuildID].get("SetupComplete", False):
-            await log_to_discord(self.bot, GuildID, f"setbotlogchannel failed: setup incomplete ({interaction.user.id})")
-            return await interaction.response.send_message(
-                "Server is not set up yet. Please run /setup first.",
-                ephemeral=True
-            )
-
-        old_channel = data[GuildID].get("bot_logs_channel")
-        data[GuildID]["bot_logs_channel"] = str(channel.id)
-        WriteJSON(data, filename, indent=4)
-
-        await log_to_discord(self.bot, GuildID, f"Bot log channel changed from {old_channel} to {channel.id} by {interaction.user} ({interaction.user.id})")
-        await interaction.response.send_message(
-            f"Bot log channel set to <#{channel.id}>.",
-            ephemeral=True
+        await log_to_discord(
+            self.bot,
+            guild_id,
+            f"Bot log channel changed from {old_channel} to {channel.id} by {interaction.user} ({interaction.user.id})",
         )
-
+        await interaction.response.send_message(f"Bot log channel set to {channel.mention}.", ephemeral=True)

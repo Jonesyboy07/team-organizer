@@ -1,436 +1,13 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from utils.funcs import ReadJSON, WriteJSON, CheckIfAdminRole, log_to_discord
-import math
 
-# ---------- CONSTANTS ----------
 from utils.constants import MAJOR_TIMEZONES
-
-# ---------- DELETE TEAM ----------
-
-class TeamDeleteDropdown(discord.ui.Select):
-    def __init__(self, teams):
-        options = [discord.SelectOption(label=team["team_name"], value=str(idx)) for idx, team in enumerate(teams)]
-        super().__init__(placeholder="Select a team to delete...", min_values=1, max_values=1, options=options)
-
-    async def callback(self, interaction: discord.Interaction):
-        view: TeamDeleteView = self.view
-        idx = int(self.values[0])
-        team = view.teams[idx]
-        guild_id = str(interaction.guild_id)
-        servers = ReadJSON("data/servers.json")
-        current_server = servers.get(guild_id, {})
-        teams = current_server.get("teams", [])
-        teams.pop(idx)
-        current_server["teams"] = teams
-        servers[guild_id] = current_server
-        WriteJSON(servers, "data/servers.json")
-        await log_to_discord(interaction.client, guild_id, f"Team '{team['team_name']}' deleted by {interaction.user} ({interaction.user.id})")
-        await interaction.response.edit_message(content=f"Team '{team['team_name']}' deleted.", view=None, embed=None)
-
-
-class TeamDeleteView(discord.ui.View):
-    def __init__(self, teams):
-        super().__init__(timeout=60)
-        self.teams = teams
-        self.add_item(TeamDeleteDropdown(teams))
-
-# ---------- PAGINATED SELECTS ----------
-
-class PaginatedSelectView(discord.ui.View):
-    """Base class for paginated selects (members, roles, channels)."""
-    def __init__(self, items, label_fn, select_cls, teams, team_idx, field, parent_view, per_page=25):
-        super().__init__(timeout=180)
-        self.items = items
-        self.label_fn = label_fn
-        self.select_cls = select_cls
-        self.teams = teams
-        self.team_idx = team_idx
-        self.field = field
-        self.parent_view = parent_view
-        self.page = 0
-        self.per_page = per_page
-        self.max_page = max(0, math.ceil(len(items) / per_page) - 1)
-        self.update_dropdown()
-
-        self.prev_btn = discord.ui.Button(label="Prev", style=discord.ButtonStyle.secondary)
-        self.next_btn = discord.ui.Button(label="Next", style=discord.ButtonStyle.secondary)
-        self.prev_btn.callback = self.prev_page
-        self.next_btn.callback = self.next_page
-        self.add_item(self.prev_btn)
-        self.add_item(self.next_btn)
-
-    def update_dropdown(self):
-        start = self.page * self.per_page
-        end = start + self.per_page
-        opts = [discord.SelectOption(label=self.label_fn(x), value=str(x.id)) for x in self.items[start:end]]
-        self.clear_items()
-        dropdown = self.select_cls(self.teams, self.team_idx, self.field, opts, self.parent_view)
-        self.add_item(dropdown)
-        self.add_item(self.prev_btn)
-        self.add_item(self.next_btn)
-
-    async def prev_page(self, interaction: discord.Interaction):
-        if self.page > 0:
-            self.page -= 1
-            self.update_dropdown()
-            await interaction.response.edit_message(view=self)
-
-    async def next_page(self, interaction: discord.Interaction):
-        if self.page < self.max_page:
-            self.page += 1
-            self.update_dropdown()
-            await interaction.response.edit_message(view=self)
-
-
-class MemberSelectPaginated(PaginatedSelectView):
-    def __init__(self, teams, team_idx, field, guild, parent_view):
-        super().__init__(
-            items=guild.members,
-            label_fn=lambda m: m.display_name,
-            select_cls=MemberSelectLoop,
-            teams=teams,
-            team_idx=team_idx,
-            field=field,
-            parent_view=parent_view
-        )
-
-
-class RoleSelectPaginated(PaginatedSelectView):
-    def __init__(self, teams, team_idx, field, guild, parent_view):
-        super().__init__(
-            items=guild.roles,
-            label_fn=lambda r: r.name,
-            select_cls=RoleSelectLoop,
-            teams=teams,
-            team_idx=team_idx,
-            field=field,
-            parent_view=parent_view
-        )
-
-
-class ChannelSelectPaginated(PaginatedSelectView):
-    def __init__(self, teams, team_idx, field, guild, parent_view):
-        super().__init__(
-            items=guild.text_channels,
-            label_fn=lambda c: c.name,
-            select_cls=ChannelSelectLoop,
-            teams=teams,
-            team_idx=team_idx,
-            field=field,
-            parent_view=parent_view
-        )
-
-# ---------- MODIFY TEAM MAIN VIEW ----------
-
-class TeamModifyView(discord.ui.View):
-    """Main modify view for a specific team with looping."""
-    def __init__(self, teams, guild: discord.Guild, team_idx: int, root_view=None):
-        super().__init__(timeout=180)
-        self.teams = teams
-        self.guild = guild
-        self.team_idx = team_idx
-
-        self.root_view = root_view if root_view else self
-
-        self.field_dropdown = TeamFieldDropdownLoop(teams, team_idx, guild, self)
-        self.add_item(self.field_dropdown)
-
-        close_btn = discord.ui.Button(label="Close", style=discord.ButtonStyle.danger)
-        close_btn.callback = self.close_view
-        self.add_item(close_btn)
-
-        home_btn = discord.ui.Button(label="Home", style=discord.ButtonStyle.primary)
-        home_btn.callback = self.go_home
-        self.add_item(home_btn)
-
-        team_select_btn = discord.ui.Button(label="Change Team", style=discord.ButtonStyle.secondary)
-        team_select_btn.callback = self.change_team
-        self.add_item(team_select_btn)
-
-    async def close_view(self, interaction: discord.Interaction):
-        await interaction.response.edit_message(content="Modification session closed.", view=None)
-        self.stop()
-
-    async def go_home(self, interaction: discord.Interaction):
-        await interaction.response.edit_message(content=f"Modify team: **{self.teams[self.team_idx]['team_name']}**", view=self.root_view)
-
-    async def change_team(self, interaction: discord.Interaction):
-        options = [discord.SelectOption(label=t["team_name"], value=str(i)) for i, t in enumerate(self.teams)]
-        class TeamSelect(discord.ui.Select):
-            def __init__(self_inner):
-                super().__init__(placeholder="Select a team to modify...", min_values=1, max_values=1, options=options)
-            async def callback(self_inner, i: discord.Interaction):
-                idx = int(self_inner.values[0])
-                view = TeamModifyView(self.teams, interaction.guild, idx)
-                await i.response.edit_message(content=f"Modifying team: **{self.teams[idx]['team_name']}**", view=view)
-        view = discord.ui.View()
-        view.add_item(TeamSelect())
-        await interaction.response.edit_message(content="Select a team to modify:", view=view)
-
-# ---------- SELECTS ----------
-
-class MemberSelectLoop(discord.ui.Select):
-    def __init__(self, teams, team_idx, field, options, parent_view):
-        self.teams = teams
-        self.team_idx = team_idx
-        self.field = field
-        self.parent_view = parent_view
-        super().__init__(placeholder="Select new Team Captain...", min_values=1, max_values=1, options=options)
-
-    async def callback(self, interaction: discord.Interaction):
-        new_member_id = int(self.values[0])
-        team = self.teams[self.team_idx]
-        team[self.field] = new_member_id
-        guild_id = str(interaction.guild_id)
-        servers = ReadJSON("data/servers.json")
-        current_server = servers.get(guild_id, {})
-        current_server["teams"] = self.teams
-        servers[guild_id] = current_server
-        WriteJSON(servers, "data/servers.json")
-        member = interaction.guild.get_member(new_member_id)
-        await log_to_discord(interaction.client, guild_id, f"Updated {self.field} for team '{team['team_name']}' to member '{member.display_name if member else new_member_id}' by {interaction.user} ({interaction.user.id})")
-        await interaction.response.send_message(f"Updated **Team Captain** to **{member.mention if member else new_member_id}** for team **{team['team_name']}**.", ephemeral=True)
-        await interaction.edit_original_response(view=self.parent_view)
-
-
-class RoleSelectLoop(discord.ui.Select):
-    def __init__(self, teams, team_idx, field, options, parent_view):
-        self.teams = teams
-        self.team_idx = team_idx
-        self.field = field
-        self.parent_view = parent_view
-        super().__init__(placeholder=f"Select new {field.replace('_',' ').title()}...", min_values=1, max_values=1, options=options)
-
-    async def callback(self, interaction: discord.Interaction):
-        new_role_id = int(self.values[0])
-        team = self.teams[self.team_idx]
-        team[self.field] = new_role_id
-        guild_id = str(interaction.guild_id)
-        servers = ReadJSON("data/servers.json")
-        current_server = servers.get(guild_id, {})
-        current_server["teams"] = self.teams
-        servers[guild_id] = current_server
-        WriteJSON(servers, "data/servers.json")
-        role = interaction.guild.get_role(new_role_id)
-        await log_to_discord(interaction.client, guild_id, f"Updated {self.field} for team '{team['team_name']}' to role '{role.name if role else new_role_id}' by {interaction.user} ({interaction.user.id})")
-        await interaction.response.send_message(f"Updated **Team Role** to **{role.mention if role else new_role_id}** for team **{team['team_name']}**.", ephemeral=True)
-        await interaction.edit_original_response(view=self.parent_view)
-
-
-class ChannelSelectLoop(discord.ui.Select):
-    def __init__(self, teams, team_idx, field, options, parent_view):
-        self.teams = teams
-        self.team_idx = team_idx
-        self.field = field
-        self.parent_view = parent_view
-        super().__init__(placeholder=f"Select new {field.replace('_',' ').title()}...", min_values=1, max_values=1, options=options)
-
-    async def callback(self, interaction: discord.Interaction):
-        new_channel_id = int(self.values[0])
-        team = self.teams[self.team_idx]
-        team[self.field] = new_channel_id
-        guild_id = str(interaction.guild_id)
-        servers = ReadJSON("data/servers.json")
-        current_server = servers.get(guild_id, {})
-        current_server["teams"] = self.teams
-        servers[guild_id] = current_server
-        WriteJSON(servers, "data/servers.json")
-        channel = interaction.guild.get_channel(new_channel_id)
-        await log_to_discord(interaction.client, guild_id, f"Updated {self.field} for team '{team['team_name']}' to channel '{channel.name}' by {interaction.user} ({interaction.user.id})")
-        await interaction.response.send_message(f"Updated **{self.field.replace('_',' ').title()}** to **{channel.name}** for team **{team['team_name']}**.", ephemeral=True)
-        await interaction.edit_original_response(view=self.parent_view)
-
-# ---------- TEAM FIELD SELECT ----------
-
-class TeamFieldDropdownLoop(discord.ui.Select):
-    """Dropdown for selecting a field to modify."""
-    def __init__(self, teams, team_idx, guild: discord.Guild, parent_view):
-        self.teams = teams
-        self.team_idx = team_idx
-        self.guild = guild
-        self.parent_view = parent_view
-        options = [
-            discord.SelectOption(label="Team Name", value="team_name"),
-            discord.SelectOption(label="Game", value="game"),
-            discord.SelectOption(label="Team Captain", value="team_captain_id"),
-            discord.SelectOption(label="Team Role", value="team_role_id"),
-            discord.SelectOption(label="Schedule Channel", value="team_schedule_channel"),
-            discord.SelectOption(label="Timezone", value="timezone")
-        ]
-        super().__init__(placeholder="Select a field to modify...", min_values=1, max_values=1, options=options)
-
-    async def callback(self, interaction: discord.Interaction):
-        field = self.values[0]
-        team = self.teams[self.team_idx]
-
-        if field == "team_captain_id":
-            view = MemberSelectPaginated(self.teams, self.team_idx, field, self.guild, self.parent_view)
-            await interaction.response.edit_message(content=f"Select new Team Captain for **{team['team_name']}**:", view=view)
-        elif field == "team_role_id":
-            view = RoleSelectPaginated(self.teams, self.team_idx, field, self.guild, self.parent_view)
-            await interaction.response.edit_message(content=f"Select new Team Role for **{team['team_name']}**:", view=view)
-        elif field == "team_schedule_channel":
-            view = ChannelSelectPaginated(self.teams, self.team_idx, field, self.guild, self.parent_view)
-            await interaction.response.edit_message(content=f"Select new Schedule Channel for **{team['team_name']}**:", view=view)
-        elif field == "timezone":
-            tz_select = TimezoneSelectPaginated(self.teams, self.team_idx, field, self.parent_view)
-            await interaction.response.edit_message(content=f"Select timezone for **{team['team_name']}**:", view=tz_select)
-        else:
-            await interaction.response.send_modal(TeamModifyModalLoop(self.teams, self.team_idx, field, team.get(field, "")))
-
-# ---------- TIMEZONE + MODAL ----------
-
-class TimezoneSelectPaginated(discord.ui.View):
-    """Shows paginated dropdown for timezones (10 per page)."""
-    def __init__(self, teams, team_idx, field, parent_view):
-        super().__init__(timeout=180)
-        self.teams = teams
-        self.team_idx = team_idx
-        self.field = field
-        self.parent_view = parent_view
-        self.page = 0
-        self.per_page = 10
-        self.max_page = math.ceil(len(MAJOR_TIMEZONES)/self.per_page) - 1
-        self.update_dropdown()
-
-    def update_dropdown(self):
-        start = self.page * self.per_page
-        end = start + self.per_page
-        tz_options = [discord.SelectOption(label=tz, value=tz) for tz in MAJOR_TIMEZONES[start:end]]
-        self.clear_items()
-        self.tz_dropdown = TimezoneSelectDropdown(self.teams, self.team_idx, self.field, tz_options, self.parent_view, self)
-        self.add_item(self.tz_dropdown)
-
-    async def prev_page(self, interaction: discord.Interaction):
-        if self.page > 0:
-            self.page -= 1
-            self.update_dropdown()
-            await interaction.response.edit_message(content=f"Select timezone for **{self.teams[self.team_idx]['team_name']}**:", view=self)
-
-    async def next_page(self, interaction: discord.Interaction):
-        if self.page < self.max_page:
-            self.page += 1
-            self.update_dropdown()
-            await interaction.response.edit_message(content=f"Select timezone for **{self.teams[self.team_idx]['team_name']}**:", view=self)
-
-
-class TimezoneSelectDropdown(discord.ui.Select):
-    def __init__(self, teams, team_idx, field, options, parent_view, parent_paginated_view):
-        self.teams = teams
-        self.team_idx = team_idx
-        self.field = field
-        self.parent_view = parent_view
-        self.parent_paginated_view = parent_paginated_view
-        super().__init__(placeholder="Select a timezone...", min_values=1, max_values=1, options=options)
-
-    async def callback(self, interaction: discord.Interaction):
-        tz = self.values[0]
-        team = self.teams[self.team_idx]
-        team[self.field] = tz
-        guild_id = str(interaction.guild_id)
-        servers = ReadJSON("data/servers.json")
-        current_server = servers.get(guild_id, {})
-        current_server["teams"] = self.teams
-        servers[guild_id] = current_server
-        WriteJSON(servers, "data/servers.json")
-        await log_to_discord(interaction.client, guild_id, f"Updated timezone for team '{team['team_name']}' to '{tz}' by {interaction.user} ({interaction.user.id})")
-        await interaction.response.send_message(f"Updated timezone for **{team['team_name']}** to `{tz}`.", ephemeral=True)
-        await interaction.edit_original_response(view=self.parent_view)
-
-
-class TeamModifyModalLoop(discord.ui.Modal):
-    def __init__(self, teams, team_idx, field, current_value):
-        super().__init__(title=f"Modify {field.replace('_',' ').title()}")
-        self.teams = teams
-        self.team_idx = team_idx
-        self.field = field
-        self.input = discord.ui.TextInput(label=f"New value for {field.replace('_',' ').title()}", default=str(current_value), required=True)
-        self.add_item(self.input)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        new_value = self.input.value
-        team = self.teams[self.team_idx]
-        team[self.field] = new_value
-        guild_id = str(interaction.guild_id)
-        servers = ReadJSON("data/servers.json")
-        current_server = servers.get(guild_id, {})
-        current_server["teams"] = self.teams
-        servers[guild_id] = current_server
-        WriteJSON(servers, "data/servers.json")
-        await log_to_discord(interaction.client, guild_id, f"Updated {self.field} for team '{team['team_name']}' to '{new_value}' by {interaction.user} ({interaction.user.id})")
-        await interaction.response.send_message(f"Updated **{self.field.replace('_',' ').title()}** to `{new_value}` for team **{team['team_name']}**.", ephemeral=True)
-
-# ---------- TEAM LIST / DELETE / MODIFY COMMANDS ----------
-
-class TeamListView(discord.ui.View):
-    def __init__(self, teams, interaction, per_page=5):
-        super().__init__(timeout=120)
-        self.teams = teams
-        self.interaction = interaction
-        self.per_page = max(1, min(per_page, 25))
-        self.page = 0
-        self.max_page = max(0, math.ceil(len(teams) / self.per_page) - 1)
-
-        self.prev_button = discord.ui.Button(label="Previous", style=discord.ButtonStyle.secondary)
-        self.next_button = discord.ui.Button(label="Next", style=discord.ButtonStyle.secondary)
-        self.stop_button = discord.ui.Button(label="Stop", style=discord.ButtonStyle.danger)
-
-        self.prev_button.callback = self.prev_page
-        self.next_button.callback = self.next_page
-        self.stop_button.callback = self.stop_view
-
-        self.add_item(self.prev_button)
-        self.add_item(self.next_button)
-        self.add_item(self.stop_button)
-        self.update_buttons()
-
-    def update_buttons(self):
-        self.prev_button.disabled = self.page == 0
-        self.next_button.disabled = self.page >= self.max_page
-
-    async def prev_page(self, interaction: discord.Interaction):
-        if self.page > 0:
-            self.page -= 1
-            self.update_buttons()
-            await interaction.response.edit_message(embed=self.get_embed(), view=self)
-
-    async def next_page(self, interaction: discord.Interaction):
-        if self.page < self.max_page:
-            self.page += 1
-            self.update_buttons()
-            await interaction.response.edit_message(embed=self.get_embed(), view=self)
-
-    async def stop_view(self, interaction: discord.Interaction):
-        await interaction.response.edit_message(content="Command Done", embed=None, view=None)
-
-    def get_embed(self):
-        embed = discord.Embed(
-            title="Teams in this Server",
-            description=f"Total Teams: {len(self.teams)}",
-            color=discord.Color.blue()
-        )
-        start = self.page * self.per_page
-        end = start + self.per_page
-        for team in self.teams[start:end]:
-            team_captain = self.interaction.guild.get_member(team.get("team_captain_id"))
-            team_role = self.interaction.guild.get_role(team.get("team_role_id"))
-            team_schedule_channel = self.interaction.guild.get_channel(team["team_schedule_channel"])
-            embed.add_field(
-                name=team["team_name"],
-                value=(
-                    f"Game: {team['game']}\n"
-                    f"Team Captain: {team_captain.mention if team_captain else 'User not found'}\n"
-                    f"Team Role: {team_role.mention if team_role else 'Role not found'}\n"
-                    f"Schedule Channel: {team_schedule_channel.mention if team_schedule_channel else 'Channel not found'}\n"
-                    f"Timezone: {team['timezone']}\n"
-                    f"Created At: {team['created_at']}"
-                ),
-                inline=False
-            )
-        embed.set_footer(text=f"Page {self.page + 1} of {self.max_page + 1}")
-        return embed
+from utils.funcs import CheckIfAdminRole, log_to_discord
+from utils.match_request_flow import MatchRequestSetupView
+from utils.server_store import get_server, get_teams, is_setup_complete, set_server
+from utils.team_service import build_team_name_choices, find_team_by_name
+from utils.team_manage_flow import TeamDeleteView, TeamListView, TeamModifyView
 
 
 class TeamCog(commands.Cog):
@@ -444,6 +21,50 @@ class TeamCog(commands.Cog):
             if current.lower() in tz.lower()
         ][:25]
 
+    async def team_name_autocomplete(self, interaction: discord.Interaction, current: str):
+        return build_team_name_choices(str(interaction.guild_id), current)
+
+    @app_commands.command(name="my_teams", description="Show teams you are part of or captain of.")
+    async def my_teams(self, interaction: discord.Interaction):
+        guild_id = str(interaction.guild_id)
+        teams = get_teams(guild_id)
+        if not teams:
+            await interaction.response.send_message("No teams are configured yet.", ephemeral=True)
+            return
+
+        member_role_ids = {role.id for role in interaction.user.roles}
+        mine = []
+        for team in teams:
+            captain_id = int(team.get("team_captain_id", 0))
+            team_role_id = int(team.get("team_role_id", 0)) if team.get("team_role_id") else 0
+            if interaction.user.id == captain_id or (team_role_id and team_role_id in member_role_ids):
+                mine.append(team)
+
+        if not mine:
+            await interaction.response.send_message("You are not linked to any configured team roles/captain slots.", ephemeral=True)
+            return
+
+        view = discord.ui.LayoutView(timeout=120)
+        container = discord.ui.Container(accent_color=discord.Color.gold())
+        container.add_item(discord.ui.TextDisplay("## My Teams"))
+
+        lines = []
+        for team in mine:
+            schedule_channel = interaction.guild.get_channel(team.get("team_schedule_channel"))
+            request_channel = interaction.guild.get_channel(team.get("team_request_channel"))
+            role = interaction.guild.get_role(team.get("team_role_id"))
+            lines.append(
+                f"### {team.get('team_name', 'Unknown')}\n"
+                f"Game: {team.get('game', 'Unknown')}\n"
+                f"Role: {role.mention if role else 'Not set'}\n"
+                f"Schedule Channel: {schedule_channel.mention if schedule_channel else 'Not set'}\n"
+                f"Match Request Channel: {request_channel.mention if request_channel else 'Not set'}"
+            )
+
+        container.add_item(discord.ui.TextDisplay("\n\n".join(lines)))
+        view.add_item(container)
+        await interaction.response.send_message(view=view, ephemeral=True)
+
     @app_commands.command(name="create_team", description="Create a new team")
     @app_commands.autocomplete(timezone=timezone_autocomplete)
     async def create_team(
@@ -454,38 +75,62 @@ class TeamCog(commands.Cog):
         team_captain: discord.Member,
         team_role: discord.Role,
         team_schedule_channel: discord.TextChannel,
-        timezone: str
+        team_request_channel: discord.TextChannel,
+        timezone: str,
     ):
         guild_id = str(interaction.guild_id)
         user_roles = [role.id for role in interaction.user.roles]
         if not CheckIfAdminRole(user_roles, guild_id):
-            await log_to_discord(self.bot, guild_id, f"Unauthorized create_team attempt by {interaction.user} ({interaction.user.id})")
+            await log_to_discord(
+                self.bot,
+                guild_id,
+                f"Unauthorized create_team attempt by {interaction.user} ({interaction.user.id})",
+            )
             await interaction.response.send_message("You do not have permission.", ephemeral=True)
             return
-        current_server = ReadJSON("data/servers.json").get(guild_id, {})
-        if not current_server.get("SetupComplete", False):
-            await log_to_discord(self.bot, guild_id, f"create_team failed: bot not setup by {interaction.user} ({interaction.user.id})")
+
+        current_server = get_server(guild_id)
+        if not is_setup_complete(guild_id):
+            await log_to_discord(
+                self.bot,
+                guild_id,
+                f"create_team failed: bot not setup by {interaction.user} ({interaction.user.id})",
+            )
             await interaction.response.send_message("Bot not setup yet.", ephemeral=True)
             return
+
         teams = current_server.get("teams", [])
+        if any(t.get("team_name", "").lower() == team_name.lower() for t in teams):
+            await interaction.response.send_message("A team with that name already exists.", ephemeral=True)
+            return
+
         team_data = {
             "team_name": team_name,
             "game": game,
             "team_captain_id": team_captain.id,
             "team_role_id": team_role.id,
             "team_schedule_channel": team_schedule_channel.id,
+            "team_request_channel": team_request_channel.id,
             "timezone": timezone,
-            "created_at": str(interaction.created_at)
+            "created_at": str(interaction.created_at),
         }
         teams.append(team_data)
         current_server["teams"] = teams
-        all_servers = ReadJSON("data/servers.json")
-        all_servers[guild_id] = current_server
-        WriteJSON(all_servers, "data/servers.json")
-        await log_to_discord(self.bot, guild_id, f"Team '{team_name}' created for '{game}' by {interaction.user} ({interaction.user.id})")
+        set_server(guild_id, current_server)
+
+        await log_to_discord(
+            self.bot,
+            guild_id,
+            f"Team '{team_name}' created for '{game}' by {interaction.user} ({interaction.user.id})",
+        )
         await interaction.response.send_message(
-            f"Team '{team_name}' created for '{game}'. Captain: {team_captain.mention}, Role: {team_role.mention}, Channel: {team_schedule_channel.mention}, Timezone: {timezone}",
-            ephemeral=True
+            (
+                f"Team '{team_name}' created for '{game}'. "
+                f"Captain: {team_captain.mention}, Role: {team_role.mention}, "
+                f"Schedule Channel: {team_schedule_channel.mention}, "
+                f"Request Channel: {team_request_channel.mention}, Timezone: {timezone}"
+            ),
+            ephemeral=True,
         )
 
     @app_commands.command(name="list_teams", description="List all teams in this server.")
@@ -494,37 +139,62 @@ class TeamCog(commands.Cog):
         guild_id = str(interaction.guild_id)
         user_roles = [role.id for role in interaction.user.roles]
         if not CheckIfAdminRole(user_roles, guild_id):
-            await log_to_discord(self.bot, guild_id, f"Unauthorized list_teams attempt by {interaction.user} ({interaction.user.id})")
+            await log_to_discord(
+                self.bot,
+                guild_id,
+                f"Unauthorized list_teams attempt by {interaction.user} ({interaction.user.id})",
+            )
             await interaction.response.send_message("You do not have permission.", ephemeral=True)
             return
-        current_server = ReadJSON("data/servers.json").get(guild_id, {})
-        if not current_server.get("SetupComplete", False):
-            await log_to_discord(self.bot, guild_id, f"list_teams failed: bot not setup by {interaction.user} ({interaction.user.id})")
+
+        current_server = get_server(guild_id)
+        if not is_setup_complete(guild_id):
+            await log_to_discord(
+                self.bot,
+                guild_id,
+                f"list_teams failed: bot not setup by {interaction.user} ({interaction.user.id})",
+            )
             await interaction.response.send_message("Bot not setup yet.", ephemeral=True)
             return
+
         teams = current_server.get("teams", [])
         if not teams:
-            await log_to_discord(self.bot, guild_id, f"list_teams: no teams found by {interaction.user} ({interaction.user.id})")
+            await log_to_discord(
+                self.bot,
+                guild_id,
+                f"list_teams: no teams found by {interaction.user} ({interaction.user.id})",
+            )
             await interaction.response.send_message("No teams.", ephemeral=True)
             return
+
         view = TeamListView(teams, interaction, per_page=per_page)
         await log_to_discord(self.bot, guild_id, f"Teams listed by {interaction.user} ({interaction.user.id})")
-        await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
+        await interaction.response.send_message(view=view, ephemeral=True)
 
     @app_commands.command(name="delete_team", description="Delete a team from this server.")
     async def delete_team(self, interaction: discord.Interaction):
         guild_id = str(interaction.guild_id)
         user_roles = [role.id for role in interaction.user.roles]
         if not CheckIfAdminRole(user_roles, guild_id):
-            await log_to_discord(self.bot, guild_id, f"Unauthorized delete_team attempt by {interaction.user} ({interaction.user.id})")
+            await log_to_discord(
+                self.bot,
+                guild_id,
+                f"Unauthorized delete_team attempt by {interaction.user} ({interaction.user.id})",
+            )
             await interaction.response.send_message("No permission.", ephemeral=True)
             return
-        current_server = ReadJSON("data/servers.json").get(guild_id, {})
+
+        current_server = get_server(guild_id)
         teams = current_server.get("teams", [])
         if not teams:
-            await log_to_discord(self.bot, guild_id, f"delete_team: no teams to delete by {interaction.user} ({interaction.user.id})")
+            await log_to_discord(
+                self.bot,
+                guild_id,
+                f"delete_team: no teams to delete by {interaction.user} ({interaction.user.id})",
+            )
             await interaction.response.send_message("No teams to delete.", ephemeral=True)
             return
+
         view = TeamDeleteView(teams)
         await log_to_discord(self.bot, guild_id, f"Team delete view sent by {interaction.user} ({interaction.user.id})")
         await interaction.response.send_message("Select a team to delete:", view=view, ephemeral=True)
@@ -534,18 +204,112 @@ class TeamCog(commands.Cog):
         guild_id = str(interaction.guild_id)
         user_roles = [role.id for role in interaction.user.roles]
         if not CheckIfAdminRole(user_roles, guild_id):
-            await log_to_discord(self.bot, guild_id, f"Unauthorized modify_team attempt by {interaction.user} ({interaction.user.id})")
+            await log_to_discord(
+                self.bot,
+                guild_id,
+                f"Unauthorized modify_team attempt by {interaction.user} ({interaction.user.id})",
+            )
             await interaction.response.send_message("No permission.", ephemeral=True)
             return
-        current_server = ReadJSON("data/servers.json").get(guild_id, {})
+
+        current_server = get_server(guild_id)
         teams = current_server.get("teams", [])
         if not teams:
-            await log_to_discord(self.bot, guild_id, f"modify_team: no teams found by {interaction.user} ({interaction.user.id})")
+            await log_to_discord(
+                self.bot,
+                guild_id,
+                f"modify_team: no teams found by {interaction.user} ({interaction.user.id})",
+            )
             await interaction.response.send_message("No teams found.", ephemeral=True)
             return
+
         view = TeamModifyView(teams, interaction.guild, 0)
         await log_to_discord(self.bot, guild_id, f"Team modify view sent by {interaction.user} ({interaction.user.id})")
         await interaction.response.send_message(content=f"Modify team: **{teams[0]['team_name']}**", view=view, ephemeral=True)
+
+    @app_commands.command(name="request_match", description="Request a match from another team.")
+    @app_commands.autocomplete(requesting_team=team_name_autocomplete, target_team=team_name_autocomplete)
+    async def request_match(
+        self,
+        interaction: discord.Interaction,
+        requesting_team: str,
+        target_team: str,
+        date: str,
+        notes: str = "",
+    ):
+        guild_id = str(interaction.guild_id)
+        current_server = get_server(guild_id)
+        if not is_setup_complete(guild_id):
+            await interaction.response.send_message("Bot not setup yet.", ephemeral=True)
+            return
+
+        teams = current_server.get("teams", [])
+        if not teams:
+            await interaction.response.send_message("No teams found.", ephemeral=True)
+            return
+
+        requester_team = find_team_by_name(teams, requesting_team)
+        receiver_team = find_team_by_name(teams, target_team)
+
+        if requester_team is None:
+            await interaction.response.send_message("Requesting team not found.", ephemeral=True)
+            return
+
+        if receiver_team is None:
+            await interaction.response.send_message("Target team not found.", ephemeral=True)
+            return
+
+        if requester_team.get("team_name") == receiver_team.get("team_name"):
+            await interaction.response.send_message("You cannot request a match against the same team.", ephemeral=True)
+            return
+
+        user_roles = [role.id for role in interaction.user.roles]
+        is_admin = CheckIfAdminRole(user_roles, guild_id)
+        is_captain = interaction.user.id == int(requester_team.get("team_captain_id", 0))
+        if not is_admin and not is_captain:
+            await interaction.response.send_message(
+                "You must be an admin or the requesting team's captain to do this.",
+                ephemeral=True,
+            )
+            return
+
+        request_channel_id = receiver_team.get("team_request_channel")
+        request_channel = interaction.guild.get_channel(int(request_channel_id)) if request_channel_id else None
+        if request_channel is None:
+            await log_to_discord(
+                self.bot,
+                guild_id,
+                f"request_match failed: request channel missing for target team {receiver_team.get('team_name')}",
+            )
+            await interaction.response.send_message(
+                "Target team has no valid match request channel configured.",
+                ephemeral=True,
+            )
+            return
+
+        view = MatchRequestSetupView(
+            bot=self.bot,
+            guild_id=guild_id,
+            requester=interaction.user,
+            requesting_team_name=requester_team.get("team_name", requesting_team),
+            target_team_name=receiver_team.get("team_name", target_team),
+            target_team_captain_id=int(receiver_team.get("team_captain_id", 0)),
+            request_channel=request_channel,
+            request_date=date,
+            notes=notes,
+        )
+
+        await log_to_discord(
+            self.bot,
+            guild_id,
+            f"request_match setup opened by {interaction.user} ({interaction.user.id}) for "
+            f"{requesting_team} -> {target_team} on {date}",
+        )
+        await interaction.response.send_message(
+            "Select the requested time and timezone, then submit.",
+            view=view,
+            ephemeral=True,
+        )
 
 
 async def setup(bot: commands.Bot):

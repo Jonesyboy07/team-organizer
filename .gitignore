@@ -68,3 +68,4 @@ utils/db.py
 notes.txt
 /data/events
 data/update.txt
+data/stats_hidden.json

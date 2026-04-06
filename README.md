@@ -35,6 +35,7 @@ A powerful, open-source Discord bot for scheduling games and events within your 
    ```
 5. **Customize commands:**
    - Edit `data/commands.json` for your project needs.
+   - You will still need to edit the code to add more commands. This is just for the help command.
 6. **Run the bot:**
    ```powershell
    py main.py

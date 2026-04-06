@@ -1,5 +1,6 @@
 import json
 from os import path
+from utils.server_store import read_servers, get_server
 
 def CheckIfBotChannel(channel_id, guild_id):
     """Check the Server JSON to see if the given channel ID is a bot channel.
@@ -11,14 +12,10 @@ def CheckIfBotChannel(channel_id, guild_id):
     Returns:
         bool: If the channel is a bot channel (True) or not (False).
     """
-    filename = "data/servers.json"
-    if not path.exists(filename):
+    if not path.exists("data/servers.json"):
         return False
-    data = ReadJSON(filename)
-    if str(guild_id) in data:
-        return str(channel_id) in data[str(guild_id)]["bot_channels"]
-    else:
-        return False
+    server = get_server(guild_id)
+    return str(channel_id) in server.get("bot_channels", [])
 
 def CheckIfAdminRole(role_ids, guild_id):
     """Check the Server JSON to see if any of the given role IDs are admin roles.
@@ -30,14 +27,13 @@ def CheckIfAdminRole(role_ids, guild_id):
     Returns:
         bool: The result of the check (True if any role ID is an admin role, False otherwise).
     """
-    filename = "data/servers.json"
-    if not path.exists(filename):
+    if not path.exists("data/servers.json"):
         return False
-    data = ReadJSON(filename)
-    if str(guild_id) in data:
-        for role_id in role_ids:
-            if str(role_id) in data[str(guild_id)]["admin_roles"]:
-                return True
+    server = get_server(guild_id)
+    admin_roles = server.get("admin_roles", [])
+    for role_id in role_ids:
+        if str(role_id) in admin_roles:
+            return True
     return False
 
 def ReadJSON(filename):
@@ -70,22 +66,19 @@ def CheckIfTeamCaptain(role_ids, guild_id, team_name):
         role_ids (array[int]): The role ID's of the user to check.
         guild_id (int): The guild/server ID to check.
         team_name (str): The name of the team to check."""
-    filename = "data/servers.json"
-    if not path.exists(filename):
+    if not path.exists("data/servers.json"):
         return False
-    data = ReadJSON(filename)
-    if str(guild_id) in data:
-        teams = data[str(guild_id)].get("teams", [])
-        for team in teams:
-            if team.get("team_name") == team_name:
-                for role_id in role_ids:
-                    if team.get("team_captain_id") == role_id:
-                        return True
+    teams = get_server(guild_id).get("teams", [])
+    for team in teams:
+        if team.get("team_name") == team_name:
+            for role_id in role_ids:
+                if team.get("team_captain_id") == role_id:
+                    return True
     return False
 
 async def log_to_discord(bot, guild_id, message):
     """Send a log message to the bot_logs_channel for the given guild."""
-    data = ReadJSON("data/servers.json")
+    data = read_servers()
     channel_id = data.get(str(guild_id), {}).get("bot_logs_channel")
     if channel_id:
         guild = bot.get_guild(int(guild_id))

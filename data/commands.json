@@ -6,7 +6,49 @@
                 {
                     "name": "setup",
                     "description": "Sets up the bot in the server.",
-                    "usage": "/setup BotChannel:<channel> AdminRole:<role>",
+                    "usage": "/setup command_channel:<channel> admin_role:<role> update_logs:<channel> bot_logs:<channel>",
+                    "admin_required": true
+                },
+                {
+                    "name": "addbotchannel",
+                    "description": "Add a bot command channel.",
+                    "usage": "/addbotchannel channel:<channel>",
+                    "admin_required": true
+                },
+                {
+                    "name": "removebotchannel",
+                    "description": "Remove a bot command channel.",
+                    "usage": "/removebotchannel channel:<channel>",
+                    "admin_required": true
+                },
+                {
+                    "name": "addadminrole",
+                    "description": "Add an admin role for bot permissions.",
+                    "usage": "/addadminrole role:<role>",
+                    "admin_required": true
+                },
+                {
+                    "name": "removeadminrole",
+                    "description": "Remove an admin role for bot permissions.",
+                    "usage": "/removeadminrole role:<role>",
+                    "admin_required": true
+                },
+                {
+                    "name": "listbotchannels",
+                    "description": "List configured bot channels.",
+                    "usage": "/listbotchannels",
+                    "admin_required": true
+                },
+                {
+                    "name": "listadminroles",
+                    "description": "List configured admin roles.",
+                    "usage": "/listadminroles",
+                    "admin_required": true
+                },
+                {
+                    "name": "setbotlogchannel",
+                    "description": "Set or change the bot logging channel.",
+                    "usage": "/setbotlogchannel channel:<channel>",
                     "admin_required": true
                 }
             ]
@@ -18,6 +60,12 @@
                     "name": "help",
                     "description": "Prompts this message!",
                     "usage": "/help",
+                    "admin_required": false
+                },
+                {
+                    "name": "quickstart",
+                    "description": "Show a quick getting-started guide for admins, captains, and users.",
+                    "usage": "/quickstart",
                     "admin_required": false
                 },
                 {
@@ -52,7 +100,7 @@
                 {
                     "name": "create_team",
                     "description": "Create a new team in this server.",
-                    "usage": "/create_team team_name:<name> game:<game> team_cap_role:<role> team_schedule_channel:<channel> timezone:<timezone>",
+                    "usage": "/create_team team_name:<name> game:<game> team_captain:<member> team_role:<role> team_schedule_channel:<channel> team_request_channel:<channel> timezone:<timezone>",
                     "admin_required": true
                 },
                 {
@@ -72,6 +120,18 @@
                     "description": "Modify an existing team's details.",
                     "usage": "/modify_team",
                     "admin_required": true
+                },
+                {
+                    "name": "request_match",
+                    "description": "Request a match from another team with selected time and timezone.",
+                    "usage": "/request_match requesting_team:<team> target_team:<team> date:<YYYY-MM-DD> notes:<optional>",
+                    "admin_required": false
+                },
+                {
+                    "name": "my_teams",
+                    "description": "Show teams you are part of or captain of.",
+                    "usage": "/my_teams",
+                    "admin_required": false
                 }
             ]
         },
@@ -92,7 +152,7 @@
                 {
                     "name": "event",
                     "description": "Create a team event with RSVP buttons.",
-                    "usage": "/event team_name:<team> date:<YYYY-MM-DD> time:<hhmm> event_name:<name>",
+                    "usage": "/event team_name:<team> date:<YYYY-MM-DD> time:<hhmm> event_name:<name> (time examples: 0930, 1730)",
                     "admin_required": true
                 }
             ]
