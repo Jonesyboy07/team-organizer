@@ -11,6 +11,12 @@ def EnsurePreReq():
         with open(servers_path, "w") as f:
             json.dump({}, f, indent=4)
 
+    # Ensure day availability state exists
+    day_availability_path = "data/day_availability.json"
+    if not os.path.exists(day_availability_path):
+        with open(day_availability_path, "w") as f:
+            json.dump({}, f, indent=4)
+
 
 
 

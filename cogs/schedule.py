@@ -6,7 +6,7 @@ from utils.command_helpers import CommandResponse
 from datetime import datetime
 import asyncio
 
-from utils.schedule_flow import get_previous_monday, send_weekly_schedule_messages
+from utils.schedule_flow import get_previous_monday, send_weekly_schedule_messages, register_persistent_daily_views
 from utils.server_store import get_server, is_setup_complete, read_servers, write_servers
 from utils.team_service import resolve_team_timezone
 
@@ -81,6 +81,10 @@ class ScheduleCog(commands.Cog):
 
     async def cog_load(self):
         """Automatically start loop when cog is loaded."""
+        restored = register_persistent_daily_views(self.bot)
+        if restored:
+            print(f"[ScheduleCog] Re-registered {restored} persistent daily availability view(s).")
+
         if not self.schedule_core.is_running():
             self.schedule_core.start()
             print("[ScheduleCog] Background scheduling task started.")
