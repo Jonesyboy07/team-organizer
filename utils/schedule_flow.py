@@ -26,8 +26,8 @@ def _build_scope_hash(guild_id: int, channel_id: int, message_id: int, date_str:
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:20]
 
 
-def _build_custom_id(scope_hash: str) -> str:
-    return f"sched:unavail:{scope_hash}"
+def _build_custom_id(scope_hash: str, button_type: str = "unavail") -> str:
+    return f"sched:{button_type}:{scope_hash}"
 
 
 def _read_day_availability_state() -> dict:
@@ -50,6 +50,7 @@ def _save_day_entry(
     scope_hash: str,
     button_custom_id: str,
     unavailable_user_ids: set[int],
+    available_all_week_user_ids: set[int] | None = None,
 ) -> None:
     data = _read_day_availability_state()
     data[str(message_id)] = {
@@ -59,6 +60,7 @@ def _save_day_entry(
         "scope_hash": scope_hash,
         "button_custom_id": button_custom_id,
         "unavailable_user_ids": sorted(str(uid) for uid in unavailable_user_ids),
+        "available_all_week_user_ids": sorted(str(uid) for uid in (available_all_week_user_ids or set())),
     }
     _write_day_availability_state(data)
 
@@ -68,16 +70,27 @@ def _load_day_entry(message_id: int) -> dict | None:
     return data.get(str(message_id))
 
 
-def build_day_status_message(date_str: str, unavailable_user_ids: set[int]) -> str:
+def build_day_status_message(date_str: str, unavailable_user_ids: set[int], available_all_week_user_ids: set[int] | None = None) -> str:
+    if available_all_week_user_ids is None:
+        available_all_week_user_ids = set()
+    
     if not unavailable_user_ids:
         unavailable_text = "No one marked unavailable all day yet."
     else:
         mentions = ", ".join(f"<@{uid}>" for uid in sorted(unavailable_user_ids))
         unavailable_text = mentions
+    
+    if not available_all_week_user_ids:
+        available_text = "No one marked available all week yet."
+    else:
+        mentions = ", ".join(f"<@{uid}>" for uid in sorted(available_all_week_user_ids))
+        available_text = mentions
+    
     return (
         f"**{date_str}**\n"
         f"❌ **Unavailable All Day:** {unavailable_text}\n"
-        "-# Use reactions for time slots, or use the button below for all-day unavailable."
+        f"✅ **Available All Week:** {available_text}\n"
+        "-# Use reactions for time slots, or use the buttons below for all-day status."
     )
 
 
@@ -91,6 +104,7 @@ class DailyAvailabilityView(discord.ui.View):
         scope_hash: str | None = None,
         button_custom_id: str | None = None,
         unavailable_user_ids: set[int] | None = None,
+        available_all_week_user_ids: set[int] | None = None,
     ):
         super().__init__(timeout=None)  # persistent view
         self.date_str = date_str
@@ -99,31 +113,45 @@ class DailyAvailabilityView(discord.ui.View):
         self.message_id = message_id
         message_for_hash = message_id or 0
         self.scope_hash = scope_hash or _build_scope_hash(guild_id, channel_id, message_for_hash, date_str)
-        self.button_custom_id = button_custom_id or _build_custom_id(self.scope_hash)
+        self.unavailable_button_custom_id = button_custom_id or _build_custom_id(self.scope_hash, "unavail")
+        self.available_button_custom_id = _build_custom_id(self.scope_hash, "avail")
         self.unavailable_user_ids: set[int] = unavailable_user_ids or set()
+        self.available_all_week_user_ids: set[int] = available_all_week_user_ids or set()
 
-        self.toggle_button = discord.ui.Button(
+        self.toggle_unavailable_button = discord.ui.Button(
             label="Toggle Unavailable All Day",
             style=discord.ButtonStyle.secondary,
             emoji="❌",
-            custom_id=self.button_custom_id,
+            custom_id=self.unavailable_button_custom_id,
         )
-        self.toggle_button.callback = self.toggle_unavailable
-        self.add_item(self.toggle_button)
+        self.toggle_unavailable_button.callback = self.toggle_unavailable
+        self.add_item(self.toggle_unavailable_button)
+
+        self.toggle_available_button = discord.ui.Button(
+            label="Toggle Available All Week",
+            style=discord.ButtonStyle.secondary,
+            emoji="✅",
+            custom_id=self.available_button_custom_id,
+        )
+        self.toggle_available_button.callback = self.toggle_available_all_week
+        self.add_item(self.toggle_available_button)
 
     def bind_message(self, message_id: int) -> None:
         self.message_id = message_id
         self.scope_hash = _build_scope_hash(self.guild_id, self.channel_id, message_id, self.date_str)
-        self.button_custom_id = _build_custom_id(self.scope_hash)
-        self.toggle_button.custom_id = self.button_custom_id
+        self.unavailable_button_custom_id = _build_custom_id(self.scope_hash, "unavail")
+        self.available_button_custom_id = _build_custom_id(self.scope_hash, "avail")
+        self.toggle_unavailable_button.custom_id = self.unavailable_button_custom_id
+        self.toggle_available_button.custom_id = self.available_button_custom_id
         _save_day_entry(
             message_id=message_id,
             guild_id=self.guild_id,
             channel_id=self.channel_id,
             date_str=self.date_str,
             scope_hash=self.scope_hash,
-            button_custom_id=self.button_custom_id,
+            button_custom_id=self.unavailable_button_custom_id,
             unavailable_user_ids=self.unavailable_user_ids,
+            available_all_week_user_ids=self.available_all_week_user_ids,
         )
 
     async def toggle_unavailable(self, interaction: discord.Interaction):
@@ -136,7 +164,7 @@ class DailyAvailabilityView(discord.ui.View):
             status = "Marked you as unavailable all day for this day."
 
         await interaction.response.edit_message(
-            content=build_day_status_message(self.date_str, self.unavailable_user_ids),
+            content=build_day_status_message(self.date_str, self.unavailable_user_ids, self.available_all_week_user_ids),
             view=self,
         )
 
@@ -150,8 +178,40 @@ class DailyAvailabilityView(discord.ui.View):
                 channel_id=self.channel_id,
                 date_str=self.date_str,
                 scope_hash=self.scope_hash,
-                button_custom_id=self.button_custom_id,
+                button_custom_id=self.unavailable_button_custom_id,
                 unavailable_user_ids=self.unavailable_user_ids,
+                available_all_week_user_ids=self.available_all_week_user_ids,
+            )
+
+        await interaction.followup.send(f"✅ {status}", ephemeral=True)
+
+    async def toggle_available_all_week(self, interaction: discord.Interaction):
+        user_id = interaction.user.id
+        if user_id in self.available_all_week_user_ids:
+            self.available_all_week_user_ids.remove(user_id)
+            status = "Removed your available all week status."
+        else:
+            self.available_all_week_user_ids.add(user_id)
+            status = "Marked you as available all week."
+
+        await interaction.response.edit_message(
+            content=build_day_status_message(self.date_str, self.unavailable_user_ids, self.available_all_week_user_ids),
+            view=self,
+        )
+
+        if interaction.message and interaction.message.id:
+            self.message_id = interaction.message.id
+
+        if self.message_id is not None:
+            _save_day_entry(
+                message_id=self.message_id,
+                guild_id=self.guild_id,
+                channel_id=self.channel_id,
+                date_str=self.date_str,
+                scope_hash=self.scope_hash,
+                button_custom_id=self.unavailable_button_custom_id,
+                unavailable_user_ids=self.unavailable_user_ids,
+                available_all_week_user_ids=self.available_all_week_user_ids,
             )
 
         await interaction.followup.send(f"✅ {status}", ephemeral=True)
@@ -173,6 +233,9 @@ def register_persistent_daily_views(bot) -> int:
             unavailable_user_ids = {
                 int(uid) for uid in entry.get("unavailable_user_ids", []) if str(uid).isdigit()
             }
+            available_all_week_user_ids = {
+                int(uid) for uid in entry.get("available_all_week_user_ids", []) if str(uid).isdigit()
+            }
 
             if guild_id == 0 or channel_id == 0:
                 continue
@@ -185,6 +248,7 @@ def register_persistent_daily_views(bot) -> int:
                 scope_hash=scope_hash,
                 button_custom_id=button_custom_id,
                 unavailable_user_ids=unavailable_user_ids,
+                available_all_week_user_ids=available_all_week_user_ids,
             )
             bot.add_view(view, message_id=message_id)
             registered += 1
@@ -204,7 +268,7 @@ class WeeklyScheduleIntroView(discord.ui.LayoutView):
             "7 PM", "8 PM", "9 PM", "10 PM",
         ]
         times_str = "\n".join([f"{emoji} = {label}" for emoji, label in zip(number_emojis, time_labels)])
-        times_str += f"\n{unavailable_emoji} = Not Available (all day)"
+        times_str += f"\n{unavailable_emoji} = Not Available (all day)\n✅ = Available All Week"
 
         container = discord.ui.Container(accent_color=discord.Color.blue())
         container.add_item(discord.ui.TextDisplay("## Weekly Scheduling"))
