@@ -142,6 +142,8 @@ class DailyAvailabilityView(discord.ui.LayoutView):
         container.add_item(self.guidance)
         self.add_item(container)
 
+        self.actions_row = discord.ui.ActionRow()
+
         self.toggle_available_button = discord.ui.Button(
             label="Available All Day",
             style=discord.ButtonStyle.success,
@@ -149,7 +151,7 @@ class DailyAvailabilityView(discord.ui.LayoutView):
             custom_id=self.available_button_custom_id,
         )
         self.toggle_available_button.callback = self.toggle_available_all_day
-        self.add_item(self.toggle_available_button)
+        self.actions_row.add_item(self.toggle_available_button)
 
         self.toggle_unavailable_button = discord.ui.Button(
             label="Unavailable All Day",
@@ -158,7 +160,10 @@ class DailyAvailabilityView(discord.ui.LayoutView):
             custom_id=self.unavailable_button_custom_id,
         )
         self.toggle_unavailable_button.callback = self.toggle_unavailable
-        self.add_item(self.toggle_unavailable_button)
+        self.actions_row.add_item(self.toggle_unavailable_button)
+
+        container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
+        container.add_item(self.actions_row)
 
         self.refresh_content()
 
