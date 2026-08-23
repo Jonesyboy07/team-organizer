@@ -1,11 +1,12 @@
 import os
-from dotenv import load_dotenv
 
 import discord
 from discord.ext import commands
+from dotenv import load_dotenv
+
 from cogs.init import get_cogs
-from utils.stats_cache import cache_stats
 from utils.command_docs import sync_commands_json
+from utils.stats_cache import cache_stats
 
 load_dotenv()
 token = os.getenv("DISCORD_TOKEN")

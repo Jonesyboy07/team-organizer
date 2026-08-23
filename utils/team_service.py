@@ -1,5 +1,4 @@
 import pytz
-
 from discord import app_commands
 
 from utils.constants import TIMEZONE_MAP
@@ -19,7 +18,7 @@ def resolve_team_timezone(team: dict):
     tz_name = TIMEZONE_MAP.get(tz_label, tz_label)
     try:
         return pytz.timezone(tz_name)
-    except Exception:
+    except Exception:  # noqa: BLE001
         return pytz.UTC
 
 

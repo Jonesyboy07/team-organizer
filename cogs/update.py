@@ -1,8 +1,11 @@
-from discord.ext import commands
-from utils.funcs import ReadJSON
-from utils.command_docs import sync_commands_json
+import asyncio
 import os
+
+from discord.ext import commands
 from dotenv import load_dotenv
+
+from utils.command_docs import sync_commands_json
+from utils.funcs import ReadJSON
 
 
 def _owner_id() -> int:
@@ -11,6 +14,11 @@ def _owner_id() -> int:
         return int(os.getenv("OWNER_ID", "0"))
     except ValueError:
         return 0
+
+
+def _read_update_text() -> str:
+    with open("data/update.txt", "r", encoding="utf-8") as f:
+        return f.read().strip()
 
 class UpdateCog(commands.Cog):
     def __init__(self, bot):
@@ -32,7 +40,7 @@ class UpdateCog(commands.Cog):
 
         try:
             synced = await self.bot.tree.sync()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             await ctx.send(f"Command sync failed: {e}")
             return
 
@@ -66,17 +74,16 @@ class UpdateCog(commands.Cog):
 
         try:
             servers = ReadJSON("data/servers.json")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             await ctx.send(f"Error reading servers.json: {e}")
             return
 
         try:
-            with open("data/update.txt", "r", encoding="utf-8") as f:
-                update_text = f.read().strip()
+            update_text = await asyncio.to_thread(_read_update_text)
         except FileNotFoundError:
             await ctx.send("No update.txt file found in the data folder.")
             return
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             await ctx.send(f"Error reading update.txt: {e}")
             return
 
@@ -98,7 +105,7 @@ class UpdateCog(commands.Cog):
                     continue
                 await channel.send(f"📢 **Update:**\n{update_text}")
                 sent_count += 1
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 failed_guilds.append(guild_id)
                 print(e)
                 continue

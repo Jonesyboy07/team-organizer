@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
-from utils.server_store import read_servers, write_servers, set_server
+
+from utils.server_store import read_servers, set_server, write_servers
 
 
 class JoinedCog(commands.Cog):

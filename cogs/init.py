@@ -1,9 +1,9 @@
+from cogs.event import EventCog
 from cogs.help import HelpCog
 from cogs.joined import JoinedCog
+from cogs.schedule import ScheduleCog
 from cogs.setup import SetupCog
 from cogs.team import TeamCog
-from cogs.schedule import ScheduleCog
-from cogs.event import EventCog
 from cogs.update import UpdateCog
 
 

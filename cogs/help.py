@@ -1,12 +1,15 @@
-import discord
-from discord.ext import commands
-from discord import app_commands
 import os
 from os import path
+
+import discord
+from discord import app_commands
+from discord.ext import commands
 from dotenv import load_dotenv
-from utils.funcs import ReadJSON, CheckIfBotChannel
+
 from utils.constants import INVITE_LINK
+from utils.funcs import CheckIfBotChannel, ReadJSON
 from utils.help_flow import HelpLayoutView
+
 
 class HelpCog(commands.Cog):
     def __init__(self, bot):

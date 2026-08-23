@@ -1,5 +1,6 @@
-import json
 import asyncio
+import json
+
 
 async def cache_stats(bot, interval=600):
     while True:

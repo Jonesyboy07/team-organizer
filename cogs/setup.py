@@ -1,13 +1,13 @@
 import discord
-from discord.ext import commands
 from discord import app_commands
+from discord.ext import commands
 
-from utils.funcs import CheckIfAdminRole
-from utils.server_store import get_server, read_servers, set_server, write_servers
 from utils.command_helpers import (
     CommandResponse,
     log_command_execution,
 )
+from utils.funcs import CheckIfAdminRole
+from utils.server_store import get_server, read_servers, set_server, write_servers
 
 
 class SetupCog(commands.Cog):

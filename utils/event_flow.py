@@ -1,7 +1,7 @@
 import discord
 
-from utils.funcs import log_to_discord
 from utils.command_helpers import CommandResponse
+from utils.funcs import log_to_discord
 
 ATTEND_EMOJI = "✅"
 MAYBE_EMOJI = "🤔"

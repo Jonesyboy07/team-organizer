@@ -1,10 +1,11 @@
 import math
+
 import discord
 
-from utils.funcs import log_to_discord
-from utils.constants import MAJOR_TIMEZONES
-from utils.server_store import save_teams
 from utils.command_helpers import CommandResponse
+from utils.constants import MAJOR_TIMEZONES
+from utils.funcs import log_to_discord
+from utils.server_store import save_teams
 
 
 def persist_teams(guild_id: str, teams: list):

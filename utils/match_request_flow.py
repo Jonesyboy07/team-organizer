@@ -1,5 +1,5 @@
-from datetime import datetime
 import uuid
+from datetime import datetime
 
 import discord
 import pytz
@@ -7,7 +7,6 @@ import pytz
 from utils.command_helpers import CommandResponse
 from utils.constants import MAJOR_TIMEZONES, TIMEZONE_MAP
 from utils.funcs import CheckIfAdminRole, log_to_discord
-
 
 TIME_OPTIONS = [
     ("13:00", "1:00 PM"),
@@ -26,7 +25,7 @@ TIME_OPTIONS = [
 def parse_request_datetime(date_text: str, time_text: str, timezone_label: str):
     tz_name = TIMEZONE_MAP.get(timezone_label, timezone_label)
     timezone = pytz.timezone(tz_name)
-    naive_dt = datetime.strptime(f"{date_text} {time_text}", "%Y-%m-%d %H:%M")
+    naive_dt = datetime.strptime(f"{date_text} {time_text}", "%Y-%m-%d %H:%M")  # noqa: DTZ007
     aware_dt = timezone.localize(naive_dt)
     return aware_dt
 
@@ -121,7 +120,7 @@ class MatchRequestSetupView(discord.ui.View):
             await log_to_discord(
                 self.bot,
                 self.guild_id,
-                f"request_match datetime parse failure for {self.requester.id}: {repr(exc)}",
+                f"request_match datetime parse failure for {self.requester.id}: {exc!r}",
             )
             await CommandResponse.error(
                 interaction,
@@ -151,7 +150,7 @@ class MatchRequestSetupView(discord.ui.View):
             await log_to_discord(
                 self.bot,
                 self.guild_id,
-                f"request_match send failure for {self.requester.id} into {self.request_channel.id}: {repr(exc)}",
+                f"request_match send failure for {self.requester.id} into {self.request_channel.id}: {exc!r}",
             )
             await CommandResponse.error(
                 interaction,

@@ -1,7 +1,9 @@
 import json
-from os import path
 from datetime import datetime, timezone
-from utils.server_store import read_servers, get_server
+from os import path
+
+from utils.server_store import get_server, read_servers
+
 
 def CheckIfBotChannel(channel_id, guild_id):
     """Check the Server JSON to see if the given channel ID is a bot channel.

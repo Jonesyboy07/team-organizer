@@ -4,7 +4,6 @@ from os import path
 import discord
 from discord import app_commands
 
-
 SECTION_ORDER = ["Setup", "General", "Teams", "Scheduling", "Event"]
 
 COMMAND_SECTION = {
@@ -30,6 +29,7 @@ COMMAND_SECTION = {
     "modify_team": "Teams",
     "request_match": "Teams",
     "send_schedule": "Scheduling",
+    "check_availability": "Scheduling",
     "event": "Event",
 }
 

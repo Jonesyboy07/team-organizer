@@ -1,15 +1,20 @@
-import discord
-from discord.ext import commands
-from discord import app_commands
-from datetime import datetime
-import os
 import json
+import os
+from datetime import datetime
 
-from utils.event_flow import EventRSVPLayoutView
+import discord
+from discord import app_commands
+from discord.ext import commands
+
 from utils.command_helpers import CommandResponse, validate_date_format
+from utils.event_flow import EventRSVPLayoutView
 from utils.funcs import log_to_discord
 from utils.server_store import get_teams
-from utils.team_service import build_team_name_choices, find_team_by_name, resolve_team_timezone
+from utils.team_service import (
+    build_team_name_choices,
+    find_team_by_name,
+    resolve_team_timezone,
+)
 
 
 class EventCog(commands.Cog):
@@ -85,11 +90,11 @@ class EventCog(commands.Cog):
         normalized_time = normalized_time.zfill(4)
 
         try:
-            event_date = datetime.strptime(date, "%Y-%m-%d")
-            event_time = datetime.strptime(normalized_time, "%H%M")
+            event_date = datetime.strptime(date, "%Y-%m-%d")  # noqa: DTZ007
+            event_time = datetime.strptime(normalized_time, "%H%M")  # noqa: DTZ007
             event_dt = event_date.replace(hour=event_time.hour, minute=event_time.minute)
             event_dt = tz.localize(event_dt)
-        except Exception:
+        except Exception:  # noqa: BLE001
             await log_to_discord(
                 self.bot,
                 guild_id,

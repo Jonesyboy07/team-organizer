@@ -3,9 +3,11 @@ Command helpers for consistent UX, error handling, and automated metadata.
 Provides decorators and response templates for slash commands.
 """
 
-import discord
+from collections.abc import Callable
 from functools import wraps
-from typing import Optional, Callable, Any
+from typing import Any, ClassVar
+
+import discord
 
 # ===== RESPONSE TEMPLATES =====
 
@@ -13,7 +15,7 @@ class CommandResponse:
     """Standard command response templates for consistent UX."""
 
     @staticmethod
-    def _card(color: discord.Color, message: str, hint: Optional[str] = None) -> discord.ui.LayoutView:
+    def _card(color: discord.Color, message: str, hint: str | None = None) -> discord.ui.LayoutView:
         """Build a CV2 card with an optional hint subtext."""
         view = discord.ui.LayoutView(timeout=60)
         container = discord.ui.Container(accent_color=color)
@@ -32,17 +34,17 @@ class CommandResponse:
         await interaction.response.send_message(view=view, ephemeral=ephemeral)
 
     @staticmethod
-    async def error(interaction: discord.Interaction, message: str, ephemeral: bool = True, hint: Optional[str] = None) -> None:
+    async def error(interaction: discord.Interaction, message: str, ephemeral: bool = True, hint: str | None = None) -> None:
         view = CommandResponse._card(discord.Color.red(), f"❌ {message}", hint)
         await interaction.response.send_message(view=view, ephemeral=ephemeral)
 
     @staticmethod
-    async def warning(interaction: discord.Interaction, message: str, ephemeral: bool = True, hint: Optional[str] = None) -> None:
+    async def warning(interaction: discord.Interaction, message: str, ephemeral: bool = True, hint: str | None = None) -> None:
         view = CommandResponse._card(discord.Color.orange(), f"⚠️ {message}", hint)
         await interaction.response.send_message(view=view, ephemeral=ephemeral)
 
     @staticmethod
-    async def info(interaction: discord.Interaction, message: str, ephemeral: bool = True, hint: Optional[str] = None) -> None:
+    async def info(interaction: discord.Interaction, message: str, ephemeral: bool = True, hint: str | None = None) -> None:
         view = CommandResponse._card(discord.Color.blurple(), f"ℹ️ {message}", hint)
         await interaction.response.send_message(view=view, ephemeral=ephemeral)
 
@@ -54,24 +56,24 @@ class CommandResponse:
         await interaction.followup.send(view=view, ephemeral=ephemeral)
 
     @staticmethod
-    async def followup_error(interaction: discord.Interaction, message: str, ephemeral: bool = True, hint: Optional[str] = None) -> None:
+    async def followup_error(interaction: discord.Interaction, message: str, ephemeral: bool = True, hint: str | None = None) -> None:
         view = CommandResponse._card(discord.Color.red(), f"❌ {message}", hint)
         await interaction.followup.send(view=view, ephemeral=ephemeral)
 
     @staticmethod
-    async def followup_warning(interaction: discord.Interaction, message: str, ephemeral: bool = True, hint: Optional[str] = None) -> None:
+    async def followup_warning(interaction: discord.Interaction, message: str, ephemeral: bool = True, hint: str | None = None) -> None:
         view = CommandResponse._card(discord.Color.orange(), f"⚠️ {message}", hint)
         await interaction.followup.send(view=view, ephemeral=ephemeral)
 
     @staticmethod
-    async def followup_info(interaction: discord.Interaction, message: str, ephemeral: bool = True, hint: Optional[str] = None) -> None:
+    async def followup_info(interaction: discord.Interaction, message: str, ephemeral: bool = True, hint: str | None = None) -> None:
         view = CommandResponse._card(discord.Color.blurple(), f"ℹ️ {message}", hint)
         await interaction.followup.send(view=view, ephemeral=ephemeral)
 
 
 # ===== AUTHORIZATION HELPERS =====
 
-def require_admin_role(cog_name: Optional[str] = None):
+def require_admin_role(cog_name: str | None = None):
     """Decorator to require admin role. Logs unauthorized attempts."""
     def decorator(func: Callable) -> Callable:
         @wraps(func)
@@ -103,8 +105,8 @@ def require_setup(func: Callable) -> Callable:
     """Decorator to require server setup to be complete."""
     @wraps(func)
     async def wrapper(self, interaction: discord.Interaction, *args, **kwargs):
-        from utils.server_store import is_setup_complete
         from utils.funcs import log_to_discord
+        from utils.server_store import is_setup_complete
         
         guild_id = str(interaction.guild_id)
         
@@ -129,7 +131,7 @@ def require_setup(func: Callable) -> Callable:
 class CommandRegistry:
     """Registry for storing command metadata for auto-generated help."""
     
-    _registry: dict[str, dict[str, Any]] = {}
+    _registry: ClassVar[dict[str, dict[str, Any]]] = {}
     
     @classmethod
     def register(
@@ -139,7 +141,7 @@ class CommandRegistry:
         description: str,
         usage: str,
         admin_required: bool = False,
-        example: Optional[str] = None
+        example: str | None = None
     ) -> Callable:
         """Decorator to register command metadata."""
         def decorator(func: Callable) -> Callable:
@@ -168,7 +170,7 @@ class CommandRegistry:
 
 # ===== INPUT VALIDATION HELPERS =====
 
-async def validate_team_exists(interaction: discord.Interaction, team_name: str, teams: list) -> Optional[dict]:
+async def validate_team_exists(interaction: discord.Interaction, team_name: str, teams: list) -> dict | None:
     """Validate that a team exists. Returns team or None."""
     from utils.team_service import find_team_by_name
     
@@ -188,7 +190,7 @@ async def validate_date_format(interaction: discord.Interaction, date_str: str) 
     from datetime import datetime
     
     try:
-        datetime.strptime(date_str, "%Y-%m-%d")
+        datetime.strptime(date_str, "%Y-%m-%d")  # noqa: DTZ007
         return True
     except ValueError:
         await CommandResponse.error(
@@ -201,7 +203,7 @@ async def validate_date_format(interaction: discord.Interaction, date_str: str) 
 
 # ===== LOGGING HELPERS =====
 
-async def log_command_execution(bot, guild_id: str, user: discord.User, command_name: str, status: str = "executed", details: Optional[str] = None) -> None:
+async def log_command_execution(bot, guild_id: str, user: discord.User, command_name: str, status: str = "executed", details: str | None = None) -> None:
     """Log command execution with consistent format."""
     from utils.funcs import log_to_discord
     
