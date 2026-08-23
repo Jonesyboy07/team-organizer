@@ -251,8 +251,8 @@ class ScheduleCog(commands.Cog):
             lines.append(f"❔ No response: {', '.join(no_response) if no_response else 'None'}")
 
         content = "\n".join(lines)
-        for i in range(0, len(content), 1900):
-            await interaction.followup.send(content[i:i + 1900], ephemeral=True)
+        for i in range(0, len(content), 3500):
+            await CommandResponse.followup_info(interaction, content[i:i + 3500])
 
 
 async def setup(bot):
