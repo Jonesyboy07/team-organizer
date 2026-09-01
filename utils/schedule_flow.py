@@ -85,7 +85,7 @@ async def send_weekly_schedule_messages(channel, team_role_mention, start_date, 
         day_date = start_date + timedelta(days=i)
         date_key = day_date.strftime("%Y-%m-%d")
         day_str = day_date.strftime("%A: The %d of %B")
-        message = await channel.send(f"## {day_str}\n-# Event ID: `{event_id}`")
+        message = await channel.send(f"## {day_str}")
         for emoji in number_emojis:
             await message.add_reaction(emoji)
         await message.add_reaction(AVAILABLE_ALL_DAY_EMOJI)

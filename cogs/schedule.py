@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import discord
 from discord import app_commands
@@ -128,15 +128,15 @@ class ScheduleCog(commands.Cog):
                         if team.get("last_synced") == today_str:
                             continue
 
-                        # Trigger every Monday between 12:00 and 12:02 local time
-                        if now.weekday() == 0 and now.hour == 12 and now.minute < 2:
+                        # Trigger every Sunday between 12:00 and 12:02 local time
+                        if now.weekday() == 6 and now.hour == 12 and now.minute < 2:
                             channel_id = team.get("team_schedule_channel")
                             channel = self.bot.get_channel(int(channel_id)) if channel_id else None
 
                             if channel:
                                 team_role_id = team.get("team_role_id")
                                 team_role_mention = f"<@&{team_role_id}>" if team_role_id else ""
-                                monday = get_previous_monday(now)
+                                monday = get_previous_monday(now + timedelta(days=1))
                                 try:
                                     await send_weekly_schedule_messages(channel, team_role_mention, monday, team)
                                 except Exception as e:  # noqa: BLE001
