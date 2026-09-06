@@ -108,7 +108,7 @@
                 },
                 {
                     "name": "version",
-                    "description": "Show bot version",
+                    "description": "Show the bot version.",
                     "usage": "/version",
                     "admin_required": false,
                     "permission": null
@@ -197,6 +197,13 @@
                     "name": "set_team_game",
                     "description": "Assign a supported game to a team.",
                     "usage": "/set_team_game team_name:<text> game:<text>",
+                    "admin_required": false,
+                    "permission": "Team captain or guild owner"
+                },
+                {
+                    "name": "set_team_region",
+                    "description": "Set a team's scrim region.",
+                    "usage": "/set_team_region team_name:<text> region:<text>",
                     "admin_required": false,
                     "permission": "Team captain or guild owner"
                 }

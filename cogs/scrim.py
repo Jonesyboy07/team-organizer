@@ -6,7 +6,7 @@ from discord.ext import commands
 
 from utils.command_helpers import CommandResponse
 from utils.event_flow import EventRSVPLayoutView
-from utils.game_service import get_game, get_games
+from utils.game_service import get_game, get_games, get_region_name
 from utils.scrim_service import get_scrim_request, make_scrim_event_id, save_scrim_request, update_scrim_request
 from utils.server_store import get_teams
 from utils.team_service import build_team_name_choices, find_team_by_name, resolve_team_timezone
@@ -16,6 +16,9 @@ def _request_text(request: dict) -> str:
     return (
         "## Scrim Request\n"
         f"**Requesting Team:** {request['requesting_team_name']}\n"
+        f"**Requesting Region:** {request['requesting_region_name']}\n"
+        f"**Receiving Team:** {request['target_team_name']}\n"
+        f"**Receiving Region:** {request['target_region_name']}\n"
         f"**Game:** {request['game_name']}\n"
         f"**Requested Time:** <t:{request['timestamp']}:F> (<t:{request['timestamp']}:R>)\n"
         f"**Captain:** {request['requester_name']} ({request['requester_id']}) <@{request['requester_id']}>\n"
@@ -29,7 +32,9 @@ def _preview_text(request: dict) -> str:
     return (
         "## Review Scrim Request\n"
         f"**From:** {request['requesting_team_name']}\n"
+        f"**From Region:** {request['requesting_region_name']}\n"
         f"**To:** {request['target_team_name']}\n"
+        f"**To Region:** {request['target_region_name']}\n"
         f"**Game:** {request['game_name']}\n"
         f"**Requested Time:** <t:{request['timestamp']}:F>\n"
         f"**Receiving Team Timezone:** {request['target_timezone']}\n"
@@ -71,7 +76,11 @@ def _build_scrim_draft(guild: discord.Guild, requester: discord.abc.User, draft:
 
     return {
         "requesting_team_name": requester_team["team_name"],
+        "requesting_region_id": requester_team.get("region_id", ""),
+        "requesting_region_name": get_region_name(requester_team.get("region_id", "")),
         "target_team_name": receiver_team["team_name"],
+        "target_region_id": receiver_team.get("region_id", ""),
+        "target_region_name": get_region_name(receiver_team.get("region_id", "")),
         "game_id": game_id,
         "game_name": selected_game["name"],
         "requester_id": requester.id,

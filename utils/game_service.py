@@ -20,10 +20,19 @@ DEFAULT_GAMES = [
     {"id": "vr_snapshot", "name": "Snapshot", "category": "VR", "enabled": True},
 ]
 
+DEFAULT_REGIONS = [
+    {"id": "eu", "name": "EU", "enabled": True},
+    {"id": "nae", "name": "NAE", "enabled": True},
+    {"id": "nac", "name": "NAC", "enabled": True},
+    {"id": "naw", "name": "NAW", "enabled": True},
+    {"id": "apac", "name": "APAC", "enabled": True},
+]
+
 
 def _default_catalog() -> dict:
     return {
         "games": DEFAULT_GAMES,
+        "regions": DEFAULT_REGIONS,
         "suggestions": [],
         "suggestion_blacklist": [],
         "suggestion_cooldowns": {},
@@ -59,6 +68,20 @@ def get_game(game_id: str) -> dict | None:
 def get_game_name(game_id: str) -> str:
     game = get_game(game_id)
     return game["name"] if game else "Unknown game"
+
+
+def get_regions() -> list[dict]:
+    return _read_catalog()["regions"]
+
+
+def get_region(region_id: str) -> dict | None:
+    normalized_id = region_id.strip().lower()
+    return next((region for region in get_regions() if region["id"] == normalized_id and region.get("enabled", True)), None)
+
+
+def get_region_name(region_id: str) -> str:
+    region = get_region(region_id)
+    return region["name"] if region else "Unassigned"
 
 
 def is_suggestion_blacklisted(user_id: int) -> bool:

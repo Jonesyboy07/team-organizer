@@ -39,6 +39,8 @@ A Discord bot for running team scheduling workflows with cleaner command UX and 
    PREFIX=!
    OWNER_ID=your_discord_user_id
 
+   Set the bot version in data/version.txt. This value is shown by /version.
+
 4. Initialize data files.
 
    Windows:

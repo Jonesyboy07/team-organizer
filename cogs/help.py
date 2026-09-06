@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 from os import path
 
 import discord
@@ -6,15 +7,59 @@ from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 
+from utils.command_helpers import CommandResponse
 from utils.constants import INVITE_LINK
 from utils.funcs import CheckIfBotChannel, ReadJSON
 from utils.help_flow import HelpLayoutView
+
+
+VERSION_FILE = "data/version.txt"
+
+
+def _owner_id() -> int:
+    try:
+        return int(os.getenv("OWNER_ID", "0"))
+    except ValueError:
+        return 0
+
+
+def _format_duration(total_seconds: int) -> str:
+    hours, remaining = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remaining, 60)
+    days, hours = divmod(hours, 24)
+    parts = []
+    if days:
+        parts.append(f"{days}d")
+    if hours or days:
+        parts.append(f"{hours}h")
+    if minutes or hours or days:
+        parts.append(f"{minutes}m")
+    parts.append(f"{seconds}s")
+    return " ".join(parts)
+
+
+def _read_version() -> str:
+    try:
+        with open(VERSION_FILE, "r", encoding="utf-8") as handle:
+            return handle.read().strip() or "Unknown"
+    except OSError:
+        return "Unknown"
 
 
 class HelpCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         load_dotenv(dotenv_path=path.abspath(path.join(os.getcwd(), ".env")))
+
+    async def _require_owner(self, interaction: discord.Interaction) -> bool:
+        owner_id = _owner_id()
+        if owner_id == 0:
+            await CommandResponse.error(interaction, "OWNER_ID is not configured.", hint="Set OWNER_ID in .env and restart the bot.")
+            return False
+        if interaction.user.id != owner_id:
+            await CommandResponse.error(interaction, "You do not have permission to use this command.")
+            return False
+        return True
 
     @app_commands.command(name="quickstart", description="Show a quick getting-started guide.")
     async def quickstart_command(self, interaction: discord.Interaction):
@@ -52,16 +97,27 @@ class HelpCog(commands.Cog):
             )
         )
 
-    @app_commands.command(name="version", description="Show bot version")
+    @app_commands.command(name="version", description="Show the bot version.")
     async def version_command(self, interaction: discord.Interaction):
-        load_dotenv(dotenv_path=path.abspath(path.join(os.getcwd(), ".env")))
-        version = os.getenv("VERSION", "Unknown")
-        await interaction.response.send_message(
-            f"ℹ️ Bot version: **{version}**", 
-            ephemeral= not CheckIfBotChannel(
-                interaction.channel_id, 
-                interaction.guild_id
-            )
+        version = _read_version()
+        await interaction.response.send_message(f"Bot version: **{version}**", ephemeral=True)
+
+    @commands.command(name="uptime", help="Owner only: show when the bot started and its uptime.")
+    async def uptime_command(self, ctx: commands.Context):
+        owner_id = _owner_id()
+        if owner_id == 0:
+            await ctx.send("OWNER_ID is not configured. Set OWNER_ID in .env and restart the bot.")
+            return
+        if ctx.author.id != owner_id:
+            await ctx.send("You do not have permission to use this command.")
+            return
+
+        started_at = getattr(self.bot, "started_at", datetime.now(timezone.utc))
+        elapsed_seconds = int((datetime.now(timezone.utc) - started_at).total_seconds())
+        started_timestamp = int(started_at.timestamp())
+        await ctx.send(
+            f"Started: <t:{started_timestamp}:F> (<t:{started_timestamp}:R>)\n"
+            f"Uptime: **{_format_duration(elapsed_seconds)}**"
         )
 
     @app_commands.command(name="ping", description="Check bot latency")

@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 
 import discord
 from discord.ext import commands
@@ -22,6 +23,7 @@ client = commands.Bot(command_prefix=prefix,
                     intents=intents,
                     help_command=None, 
                     application_id=clientid)
+client.started_at = datetime.now(timezone.utc)
 
 # Event: When the bot is ready
 @client.event
