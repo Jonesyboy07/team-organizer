@@ -4,7 +4,7 @@ from os import path
 import discord
 from discord import app_commands
 
-SECTION_ORDER = ["Setup", "General", "Teams", "Scheduling", "Event"]
+SECTION_ORDER = ["Setup", "General", "Games", "Teams", "Scheduling", "Scrims", "Event"]
 
 COMMAND_SECTION = {
     "setup": "Setup",
@@ -22,15 +22,48 @@ COMMAND_SECTION = {
     "version": "General",
     "ping": "General",
     "stats": "General",
+    "games": "Games",
+    "suggest_game": "Games",
+    "blacklist_game_suggester": "Games",
     "my_teams": "Teams",
     "create_team": "Teams",
     "list_teams": "Teams",
     "delete_team": "Teams",
     "modify_team": "Teams",
     "request_match": "Teams",
+    "set_team_game": "Teams",
+    "set_scrim_requests": "Teams",
     "send_schedule": "Scheduling",
     "check_availability": "Scheduling",
+    "request_scrim": "Scrims",
     "event": "Event",
+}
+
+COMMAND_PERMISSION = {
+    "suggest_game": "Central guild member",
+    "blacklist_game_suggester": "Central guild owner",
+    "set_team_game": "Team captain or guild owner",
+    "set_scrim_requests": "Team captain or guild owner",
+    "request_scrim": "Requesting team captain",
+    "request_match": "Team captain or admin role",
+    "send_schedule": "Team captain or admin role",
+    "check_availability": "Team captain or admin role",
+}
+
+COMMAND_ADMIN_REQUIRED = {
+    "setup",
+    "addbotchannel",
+    "removebotchannel",
+    "addadminrole",
+    "removeadminrole",
+    "listbotchannels",
+    "listadminroles",
+    "setbotlogchannel",
+    "create_team",
+    "list_teams",
+    "delete_team",
+    "modify_team",
+    "event",
 }
 
 
@@ -105,7 +138,8 @@ def sync_commands_json(bot, file_path: str = "data/commands.json") -> int:
             "name": cmd.name,
             "description": cmd.description or "No description provided.",
             "usage": _build_usage(cmd),
-            "admin_required": existing_admin.get(cmd.name, False),
+            "admin_required": COMMAND_ADMIN_REQUIRED.__contains__(cmd.name),
+            "permission": COMMAND_PERMISSION.get(cmd.name),
         }
         commands_by_section[section].append(entry)
         discovered.append(cmd.name)

@@ -5,8 +5,9 @@ from discord.ext import commands
 from utils.command_helpers import CommandResponse, validate_date_format
 from utils.constants import MAJOR_TIMEZONES
 from utils.funcs import CheckIfAdminRole, log_to_discord
+from utils.game_service import get_game, get_game_name, get_games
 from utils.match_request_flow import MatchRequestSetupView
-from utils.server_store import get_server, get_teams, is_setup_complete, set_server
+from utils.server_store import get_server, get_teams, is_setup_complete, save_teams, set_server
 from utils.team_manage_flow import TeamDeleteView, TeamListView, TeamModifyView
 from utils.team_service import build_team_name_choices, find_team_by_name
 
@@ -24,6 +25,13 @@ class TeamCog(commands.Cog):
 
     async def team_name_autocomplete(self, interaction: discord.Interaction, current: str):
         return build_team_name_choices(str(interaction.guild_id), current)
+
+    async def game_autocomplete(self, interaction: discord.Interaction, current: str):
+        return [
+            app_commands.Choice(name=f"{game['category']}: {game['name']}", value=game["id"])
+            for game in get_games()
+            if game.get("enabled", True) and current.lower() in f"{game['name']} {game['id']}".lower()
+        ][:25]
 
     @app_commands.command(name="my_teams", description="Show teams you are part of or captain of.")
     async def my_teams(self, interaction: discord.Interaction):
@@ -63,7 +71,7 @@ class TeamCog(commands.Cog):
             role = interaction.guild.get_role(team.get("team_role_id"))
             lines.append(
                 f"### {team.get('team_name', 'Unknown')}\n"
-                f"Game: {team.get('game', 'Unknown')}\n"
+                f"Game: {get_game_name(team['game_id']) if team.get('game_id') else team.get('game', 'Unassigned')}\n"
                 f"Role: {role.mention if role else 'Not set'}\n"
                 f"Schedule Channel: {schedule_channel.mention if schedule_channel else 'Not set'}\n"
                 f"Match Request Channel: {request_channel.mention if request_channel else 'Not set'}"
@@ -74,7 +82,7 @@ class TeamCog(commands.Cog):
         await interaction.response.send_message(view=view, ephemeral=True)
 
     @app_commands.command(name="create_team", description="Create a new team")
-    @app_commands.autocomplete(timezone=timezone_autocomplete)
+    @app_commands.autocomplete(timezone=timezone_autocomplete, game=game_autocomplete)
     async def create_team(
         self,
         interaction: discord.Interaction,
@@ -123,14 +131,24 @@ class TeamCog(commands.Cog):
             )
             return
 
+        selected_game = get_game(game)
+        if selected_game is None:
+            await CommandResponse.error(
+                interaction,
+                "Select a game from the supported game list.",
+                hint="Run /games to see the available game IDs.",
+            )
+            return
+
         team_data = {
             "team_name": team_name,
-            "game": game,
+            "game_id": selected_game["id"],
             "team_captain_id": team_captain.id,
             "team_role_id": team_role.id,
             "team_schedule_channel": team_schedule_channel.id,
             "team_request_channel": team_request_channel.id,
             "timezone": timezone,
+            "scrim_requests_enabled": True,
             "created_at": str(interaction.created_at),
         }
         teams.append(team_data)
@@ -140,14 +158,14 @@ class TeamCog(commands.Cog):
         await log_to_discord(
             self.bot,
             guild_id,
-            f"Team '{team_name}' created for '{game}' by {interaction.user} ({interaction.user.id})",
+            f"Team '{team_name}' created for '{selected_game['id']}' by {interaction.user} ({interaction.user.id})",
         )
         card = discord.ui.LayoutView(timeout=120)
         container = discord.ui.Container(accent_color=discord.Color.green())
         container.add_item(discord.ui.TextDisplay(f"## ✅ Team Created: {team_name}"))
         container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
         container.add_item(discord.ui.TextDisplay(
-            f"**Game:** {game}\n"
+            f"**Game:** {selected_game['name']}\n"
             f"**Captain:** {team_captain.mention}\n"
             f"**Role:** {team_role.mention}\n"
             f"**Schedule Channel:** {team_schedule_channel.mention}\n"
@@ -156,6 +174,53 @@ class TeamCog(commands.Cog):
         ))
         card.add_item(container)
         await interaction.response.send_message(view=card, ephemeral=True)
+
+    @app_commands.command(name="set_team_game", description="Assign a supported game to a team.")
+    @app_commands.autocomplete(team_name=team_name_autocomplete, game=game_autocomplete)
+    async def set_team_game(self, interaction: discord.Interaction, team_name: str, game: str):
+        guild_id = str(interaction.guild_id)
+        teams = get_teams(guild_id)
+        team = find_team_by_name(teams, team_name)
+        selected_game = get_game(game)
+        if team is None:
+            await CommandResponse.error(interaction, "Team was not found.")
+            return
+        if selected_game is None:
+            await CommandResponse.error(interaction, "Select a game from the supported game list.")
+            return
+
+        is_captain = interaction.user.id == int(team.get("team_captain_id", 0))
+        is_owner = interaction.user.id == interaction.guild.owner_id
+        if not is_captain and not is_owner:
+            await CommandResponse.error(interaction, "Only this team's captain or the server owner can set its game.")
+            return
+        if team.get("game_id") and not is_owner:
+            await CommandResponse.error(interaction, "Only the server owner can change a team's assigned game.")
+            return
+
+        team["game_id"] = selected_game["id"]
+        save_teams(guild_id, teams)
+        await CommandResponse.success(interaction, f"**{team['team_name']}** is assigned to **{selected_game['name']}**.")
+
+    @app_commands.command(name="set_scrim_requests", description="Enable or disable incoming scrim requests for a team.")
+    @app_commands.autocomplete(team_name=team_name_autocomplete)
+    async def set_scrim_requests(self, interaction: discord.Interaction, team_name: str, enabled: bool):
+        guild_id = str(interaction.guild_id)
+        teams = get_teams(guild_id)
+        team = find_team_by_name(teams, team_name)
+        if team is None:
+            await CommandResponse.error(interaction, "Team was not found.")
+            return
+
+        is_captain = interaction.user.id == int(team.get("team_captain_id", 0))
+        if not is_captain and interaction.user.id != interaction.guild.owner_id:
+            await CommandResponse.error(interaction, "Only this team's captain or the server owner can change this setting.")
+            return
+
+        team["scrim_requests_enabled"] = enabled
+        save_teams(guild_id, teams)
+        state = "enabled" if enabled else "disabled"
+        await CommandResponse.success(interaction, f"Incoming scrim requests are now {state} for **{team['team_name']}**.")
 
     @app_commands.command(name="list_teams", description="List all teams in this server.")
     @app_commands.describe(per_page="Number of teams per page (default 5, max 25)")

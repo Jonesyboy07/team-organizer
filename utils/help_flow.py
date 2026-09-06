@@ -131,12 +131,14 @@ class HelpLayoutView(discord.ui.LayoutView):
 
         lines = []
         for command in page_commands:
-            admin_required = "Requires Admin" if command.get("admin_required", False) else "No Admin Required"
+            permission = command.get("permission")
+            if permission is None:
+                permission = "Requires Admin" if command.get("admin_required", False) else "No Admin Required"
             lines.append(
                 f"### /{command['name']}\n"
                 f"-# {command['description']}\n"
                 f"Usage: {command['usage']}\n"
-                f"Permission: {admin_required}"
+                f"Permission: {permission}"
             )
 
         body_text = "\n\n".join(lines) if lines else "No commands found in this section."

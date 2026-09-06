@@ -28,11 +28,13 @@ class HelpCog(commands.Cog):
                 "2. Create teams with `/create_team`.\n"
                 "3. Check config with `/listbotchannels` and `/listadminroles`.\n\n"
                 "### For Team Captains\n"
-                "1. Use `/request_match` to request games.\n"
-                "2. Use `/send_schedule` to post weekly availability prompts.\n"
-                "3. Use `/event` to post RSVP event cards.\n\n"
+                "1. Use `/set_team_game` to assign your team's game.\n"
+                "2. Use `/set_scrim_requests` to control incoming scrim requests.\n"
+                "3. Use `/request_scrim` to request a same-game scrim.\n"
+                "4. Use `/send_schedule` to post weekly availability prompts.\n\n"
                 "### For Everyone\n"
-                "Use `/help` for full command docs and `/my_teams` to see your linked teams."
+                "Use `/games` to browse supported games, `/suggest_game` to suggest one, "
+                "and `/help` for full command docs."
             )
         )
         view.add_item(container)

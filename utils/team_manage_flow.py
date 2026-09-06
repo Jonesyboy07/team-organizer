@@ -271,7 +271,6 @@ class TeamFieldDropdownLoop(discord.ui.Select):
         self.parent_view = parent_view
         options = [
             discord.SelectOption(label="Team Name", value="team_name"),
-            discord.SelectOption(label="Game", value="game"),
             discord.SelectOption(label="Team Captain", value="team_captain_id"),
             discord.SelectOption(label="Team Role", value="team_role_id"),
             discord.SelectOption(label="Schedule Channel", value="team_schedule_channel"),

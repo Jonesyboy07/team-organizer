@@ -4,52 +4,60 @@
             "name": "Setup",
             "commands": [
                 {
-                    "name": "setup",
-                    "description": "Set up the bot in this server.",
-                    "usage": "/setup command_channel:<channel> admin_role:<role> update_logs:<channel> bot_logs:<channel>",
-                    "admin_required": true
+                    "name": "addadminrole",
+                    "description": "Add an admin role.",
+                    "usage": "/addadminrole role:<role>",
+                    "admin_required": true,
+                    "permission": null
                 },
                 {
                     "name": "addbotchannel",
                     "description": "Add a bot command channel.",
                     "usage": "/addbotchannel channel:<channel>",
-                    "admin_required": true
-                },
-                {
-                    "name": "removebotchannel",
-                    "description": "Remove a bot command channel.",
-                    "usage": "/removebotchannel channel:<channel>",
-                    "admin_required": true
-                },
-                {
-                    "name": "addadminrole",
-                    "description": "Add an admin role.",
-                    "usage": "/addadminrole role:<role>",
-                    "admin_required": true
-                },
-                {
-                    "name": "removeadminrole",
-                    "description": "Remove an admin role.",
-                    "usage": "/removeadminrole role:<role>",
-                    "admin_required": true
-                },
-                {
-                    "name": "listbotchannels",
-                    "description": "List all configured bot channels.",
-                    "usage": "/listbotchannels",
-                    "admin_required": true
+                    "admin_required": true,
+                    "permission": null
                 },
                 {
                     "name": "listadminroles",
                     "description": "List all configured admin roles.",
                     "usage": "/listadminroles",
-                    "admin_required": true
+                    "admin_required": true,
+                    "permission": null
+                },
+                {
+                    "name": "listbotchannels",
+                    "description": "List all configured bot channels.",
+                    "usage": "/listbotchannels",
+                    "admin_required": true,
+                    "permission": null
+                },
+                {
+                    "name": "removeadminrole",
+                    "description": "Remove an admin role.",
+                    "usage": "/removeadminrole role:<role>",
+                    "admin_required": true,
+                    "permission": null
+                },
+                {
+                    "name": "removebotchannel",
+                    "description": "Remove a bot command channel.",
+                    "usage": "/removebotchannel channel:<channel>",
+                    "admin_required": true,
+                    "permission": null
                 },
                 {
                     "name": "setbotlogchannel",
                     "description": "Set or change the bot logging channel.",
                     "usage": "/setbotlogchannel channel:<channel>",
-                    "admin_required": true
+                    "admin_required": true,
+                    "permission": null
+                },
+                {
+                    "name": "setup",
+                    "description": "Set up the bot in this server.",
+                    "usage": "/setup command_channel:<channel> admin_role:<role> update_logs:<channel> bot_logs:<channel>",
+                    "admin_required": true,
+                    "permission": null
                 }
             ]
         },
@@ -57,46 +65,79 @@
             "name": "General",
             "commands": [
                 {
-                    "name": "quickstart",
-                    "description": "Show a quick getting-started guide.",
-                    "usage": "/quickstart",
-                    "admin_required": false
-                },
-                {
                     "name": "help",
                     "description": "Show help information",
                     "usage": "/help",
-                    "admin_required": false
-                },
-                {
-                    "name": "version",
-                    "description": "Show bot version",
-                    "usage": "/version",
-                    "admin_required": false
-                },
-                {
-                    "name": "ping",
-                    "description": "Check bot latency",
-                    "usage": "/ping",
-                    "admin_required": false
+                    "admin_required": false,
+                    "permission": null
                 },
                 {
                     "name": "info",
                     "description": "Show bot information",
                     "usage": "/info",
-                    "admin_required": false
+                    "admin_required": false,
+                    "permission": null
                 },
                 {
                     "name": "invite",
                     "description": "Get the bot invite link",
                     "usage": "/invite",
-                    "admin_required": false
+                    "admin_required": false,
+                    "permission": null
+                },
+                {
+                    "name": "ping",
+                    "description": "Check bot latency",
+                    "usage": "/ping",
+                    "admin_required": false,
+                    "permission": null
+                },
+                {
+                    "name": "quickstart",
+                    "description": "Show a quick getting-started guide.",
+                    "usage": "/quickstart",
+                    "admin_required": false,
+                    "permission": null
                 },
                 {
                     "name": "stats",
                     "description": "Show bot statistics",
                     "usage": "/stats",
-                    "admin_required": false
+                    "admin_required": false,
+                    "permission": null
+                },
+                {
+                    "name": "version",
+                    "description": "Show bot version",
+                    "usage": "/version",
+                    "admin_required": false,
+                    "permission": null
+                }
+            ]
+        },
+        {
+            "name": "Games",
+            "commands": [
+                {
+                    "name": "blacklist_game_suggester",
+                    "description": "Prevent a user from submitting central game suggestions.",
+                    "usage": "/blacklist_game_suggester user:<member>",
+                    "admin_required": false,
+                    "permission": "Central guild owner"
+                },
+                {
+                    "name": "games",
+                    "description": "List supported games by category.",
+                    "usage": "/games",
+                    "admin_required": false,
+                    "permission": null
+                },
+                {
+                    "name": "suggest_game",
+                    "description": "Suggest a game for the central game catalog.",
+                    "usage": "/suggest_game game_name:<text>",
+                    "admin_required": false,
+                    "permission": "Central guild member"
                 }
             ]
         },
@@ -104,40 +145,60 @@
             "name": "Teams",
             "commands": [
                 {
-                    "name": "my_teams",
-                    "description": "Show teams you are part of or captain of.",
-                    "usage": "/my_teams",
-                    "admin_required": false
-                },
-                {
                     "name": "create_team",
                     "description": "Create a new team",
                     "usage": "/create_team team_name:<text> game:<text> team_captain:<member> team_role:<role> team_schedule_channel:<channel> team_request_channel:<channel> timezone:<text>",
-                    "admin_required": true
-                },
-                {
-                    "name": "list_teams",
-                    "description": "List all teams in this server.",
-                    "usage": "/list_teams [per_page:<number>]",
-                    "admin_required": true
+                    "admin_required": true,
+                    "permission": null
                 },
                 {
                     "name": "delete_team",
                     "description": "Delete a team from this server.",
                     "usage": "/delete_team",
-                    "admin_required": true
+                    "admin_required": true,
+                    "permission": null
+                },
+                {
+                    "name": "list_teams",
+                    "description": "List all teams in this server.",
+                    "usage": "/list_teams [per_page:<number>]",
+                    "admin_required": true,
+                    "permission": null
                 },
                 {
                     "name": "modify_team",
                     "description": "Modify a team's details.",
                     "usage": "/modify_team",
-                    "admin_required": true
+                    "admin_required": true,
+                    "permission": null
+                },
+                {
+                    "name": "my_teams",
+                    "description": "Show teams you are part of or captain of.",
+                    "usage": "/my_teams",
+                    "admin_required": false,
+                    "permission": null
                 },
                 {
                     "name": "request_match",
                     "description": "Request a match from another team (including teams outside this server).",
                     "usage": "/request_match requesting_team:<text> target_team:<text> date:<text> [notes:<text>]",
-                    "admin_required": false
+                    "admin_required": false,
+                    "permission": "Team captain or admin role"
+                },
+                {
+                    "name": "set_scrim_requests",
+                    "description": "Enable or disable incoming scrim requests for a team.",
+                    "usage": "/set_scrim_requests team_name:<text> enabled:<true|false>",
+                    "admin_required": false,
+                    "permission": "Team captain or guild owner"
+                },
+                {
+                    "name": "set_team_game",
+                    "description": "Assign a supported game to a team.",
+                    "usage": "/set_team_game team_name:<text> game:<text>",
+                    "admin_required": false,
+                    "permission": "Team captain or guild owner"
                 }
             ]
         },
@@ -145,10 +206,30 @@
             "name": "Scheduling",
             "commands": [
                 {
+                    "name": "check_availability",
+                    "description": "Fetch who is available for each day of a scheduling event (admin or team captain only).",
+                    "usage": "/check_availability event_id:<text>",
+                    "admin_required": false,
+                    "permission": "Team captain or admin role"
+                },
+                {
                     "name": "send_schedule",
                     "description": "Send a scheduling message for a team (admin or team captain only).",
                     "usage": "/send_schedule",
-                    "admin_required": true
+                    "admin_required": false,
+                    "permission": "Team captain or admin role"
+                }
+            ]
+        },
+        {
+            "name": "Scrims",
+            "commands": [
+                {
+                    "name": "request_scrim",
+                    "description": "Request a scrim from a same-game team.",
+                    "usage": "/request_scrim requesting_team:<text> game:<text> target_team:<text> date:<text> time:<text> [notes:<text>]",
+                    "admin_required": false,
+                    "permission": "Requesting team captain"
                 }
             ]
         },
@@ -159,7 +240,8 @@
                     "name": "event",
                     "description": "Create a team event with RSVP buttons.",
                     "usage": "/event team_name:<text> date:<text> time:<text> event_name:<text>",
-                    "admin_required": true
+                    "admin_required": true,
+                    "permission": null
                 }
             ]
         }
