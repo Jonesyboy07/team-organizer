@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 from cogs.init import get_cogs
 from utils.command_docs import sync_commands_json
+from utils.server_store import initialize_storage
 from utils.stats_cache import cache_stats
 
 load_dotenv()
@@ -24,6 +25,7 @@ client = commands.Bot(command_prefix=prefix,
                     help_command=None, 
                     application_id=clientid)
 client.started_at = datetime.now(timezone.utc)
+initialize_storage(logger=print)
 
 # Event: When the bot is ready
 @client.event
