@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 
-from utils.server_store import read_servers, set_server, write_servers
+from utils.server_store import is_server_banned, read_servers, set_server, write_servers
 
 
 class JoinedCog(commands.Cog):
@@ -10,6 +10,10 @@ class JoinedCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
+        if is_server_banned(guild.id):
+            await guild.leave()
+            return
+
         set_server(guild.id, {"SetupComplete": False})
 
         target = guild.system_channel
