@@ -9,9 +9,7 @@ from utils.constants import INVITE_LINK
 from utils.funcs import CheckIfBotChannel, ReadJSON
 from utils.help_flow import HelpLayoutView
 from utils.owner_config import owner_only
-
-
-VERSION_FILE = "data/version.txt"
+from utils.version_store import read_version
 
 
 def _format_duration(total_seconds: int) -> str:
@@ -27,16 +25,6 @@ def _format_duration(total_seconds: int) -> str:
         parts.append(f"{minutes}m")
     parts.append(f"{seconds}s")
     return " ".join(parts)
-
-
-def _read_version() -> str:
-    try:
-        with open(VERSION_FILE, "r", encoding="utf-8") as handle:
-            return handle.read().strip() or "Unknown"
-    except OSError:
-        return "Unknown"
-
-
 class HelpCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -80,7 +68,7 @@ class HelpCog(commands.Cog):
 
     @app_commands.command(name="version", description="Show the bot version.")
     async def version_command(self, interaction: discord.Interaction):
-        version = _read_version()
+        version = read_version()
         await interaction.response.send_message(f"Bot version: **{version}**", ephemeral=True)
 
     @commands.command(name="uptime", help="Owner only: show when the bot started and its uptime.")

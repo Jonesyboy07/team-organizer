@@ -5,6 +5,7 @@ from discord.ext import commands
 from utils.command_docs import sync_commands_json
 from utils.owner_config import get_prefix_display, owner_only
 from utils.server_store import read_servers
+from utils.version_store import write_version
 
 
 def _read_update_text() -> str:
@@ -51,6 +52,7 @@ class UpdateCog(commands.Cog):
                     f"- `{prefix}a_help` — list owner commands",
                     f"- `{prefix}sync_commands` — sync slash commands to Discord",
                     f"- `{prefix}refresh_help_docs` — rebuild `data/commands.json`",
+                    f"- `{prefix}set_version <value>` — update `data/version.txt`",
                     f"- `{prefix}update` — broadcast `data/update.txt`",
                     f"- `{prefix}uptime` — show bot uptime",
                     f"- `{prefix}status_list` — show rotating statuses",
@@ -60,6 +62,16 @@ class UpdateCog(commands.Cog):
                 ]
             )
         )
+
+    @commands.command(name="set_version", help="Owner only: update the bot version text.")
+    @owner_only()
+    async def set_version(self, ctx, *, version: str):
+        try:
+            normalized = write_version(version)
+        except ValueError as exc:
+            await ctx.send(str(exc))
+            return
+        await ctx.send(f"Bot version updated to `{normalized}`")
 
     @commands.command(name="update", help="Send the latest update from data/update.txt to all update logs channels in every server.")
     @owner_only()

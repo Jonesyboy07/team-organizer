@@ -151,6 +151,7 @@ Owner-only text commands:
 - uptime
 - sync_commands
 - refresh_help_docs
+- set_version
 - update
 - status_list
 - status_add
