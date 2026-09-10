@@ -49,7 +49,14 @@ A Discord bot for running team scheduling workflows with cleaner command UX and 
    Linux or macOS:
    python prereq.py
 
-5. Start the bot.
+5. Optional owner setup.
+
+   - Set `OWNER_ID` in `.env` to unlock owner-only prefix commands.
+   - Use `!a_help` after startup to view the owner command list.
+   - Default rotating statuses are tracked in `data/default_statuses.json`.
+   - Custom rotating statuses are written to `data/custom_statuses.json`, which is gitignored.
+
+6. Start the bot.
 
    Windows:
    py main.py
@@ -139,14 +146,31 @@ Help and utility:
 - /invite
 - /stats
 
-Owner-only text command:
-- update (prefix command, defaults to !update unless PREFIX is changed)
+Owner-only text commands:
+- a_help
+- uptime
+- sync_commands
+- refresh_help_docs
+- set_version
+- update
+- status_list
+- status_add
+- status_remove
+- status_refresh
 
 ## Data Files
 
-- data/servers.json stores per-server config, roles, channels, and teams.
+- data/storage.db is the live server config database.
+- data/servers.json is preserved as a JSON backup and migration source.
 - data/events stores RSVP event state by guild.
 - data/commands.json powers help content.
+- data/default_statuses.json stores tracked rotating status defaults.
+- data/custom_statuses.json stores owner-added rotating statuses.
+
+## Additional Documentation
+
+- docs/storage.md
+- docs/owner-commands.md
 
 ## Troubleshooting
 

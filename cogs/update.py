@@ -1,19 +1,11 @@
 import asyncio
-import os
 
 from discord.ext import commands
-from dotenv import load_dotenv
 
 from utils.command_docs import sync_commands_json
-from utils.funcs import ReadJSON
-
-
-def _owner_id() -> int:
-    load_dotenv()
-    try:
-        return int(os.getenv("OWNER_ID", "0"))
-    except ValueError:
-        return 0
+from utils.owner_config import get_prefix_display, owner_only
+from utils.server_store import read_servers
+from utils.version_store import write_version
 
 
 def _read_update_text() -> str:
@@ -28,16 +20,8 @@ class UpdateCog(commands.Cog):
         name="sync_commands",
         help="Owner only: globally sync slash commands to Discord.",
     )
+    @owner_only()
     async def sync_commands(self, ctx):
-        owner_id = _owner_id()
-        if owner_id == 0:
-            await ctx.send("OWNER_ID is not configured. Set OWNER_ID in .env and restart the bot.")
-            return
-
-        if ctx.author.id != owner_id:
-            await ctx.send("You do not have permission to use this command.")
-            return
-
         try:
             synced = await self.bot.tree.sync()
         except Exception as e:  # noqa: BLE001
@@ -52,30 +36,51 @@ class UpdateCog(commands.Cog):
         name="refresh_help_docs",
         help="Owner only: regenerate data/commands.json from currently loaded slash commands.",
     )
+    @owner_only()
     async def refresh_help_docs(self, ctx):
-        owner_id = _owner_id()
-        if owner_id == 0:
-            await ctx.send("OWNER_ID is not configured. Set OWNER_ID in .env and restart the bot.")
-            return
-
-        if ctx.author.id != owner_id:
-            await ctx.send("You do not have permission to use this command.")
-            return
-
         count = sync_commands_json(self.bot)
         await ctx.send(f"Regenerated data/commands.json from {count} slash command(s).")
 
+    @commands.command(name="a_help", help="Owner only: list bot owner prefix commands.")
+    @owner_only()
+    async def owner_help(self, ctx):
+        prefix = get_prefix_display(self.bot)
+        await ctx.send(
+            "\n".join(
+                [
+                    "Owner commands:",
+                    f"- `{prefix}a_help` — list owner commands",
+                    f"- `{prefix}sync_commands` — sync slash commands to Discord",
+                    f"- `{prefix}refresh_help_docs` — rebuild `data/commands.json`",
+                    f"- `{prefix}set_version <value>` — update `data/version.txt`",
+                    f"- `{prefix}update` — broadcast `data/update.txt`",
+                    f"- `{prefix}uptime` — show bot uptime",
+                    f"- `{prefix}status_list` — show rotating statuses",
+                    f"- `{prefix}status_add <text>` — add or re-enable a custom status",
+                    f"- `{prefix}status_remove <exact text>` — disable a status",
+                    f"- `{prefix}status_refresh` — force the next rotating status now",
+                ]
+            )
+        )
+
+    @commands.command(name="set_version", help="Owner only: update the bot version text.")
+    @owner_only()
+    async def set_version(self, ctx, *, version: str):
+        try:
+            normalized = write_version(version)
+        except ValueError as exc:
+            await ctx.send(str(exc))
+            return
+        await ctx.send(f"Bot version updated to `{normalized}`")
+
     @commands.command(name="update", help="Send the latest update from data/update.txt to all update logs channels in every server.")
+    @owner_only()
     async def update(self, ctx):
         print("Update command invoked by user:", ctx.author.id)
-        if ctx.author.id != _owner_id():
-            await ctx.send("You do not have permission to use this command.")
-            return
-
         try:
-            servers = ReadJSON("data/servers.json")
+            servers = read_servers()
         except Exception as e:  # noqa: BLE001
-            await ctx.send(f"Error reading servers.json: {e}")
+            await ctx.send(f"Error reading server storage: {e}")
             return
 
         try:

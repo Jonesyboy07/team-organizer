@@ -1,0 +1,14 @@
+[
+    {
+        "text": "Helping out {total_teams} teams",
+        "enabled": true
+    },
+    {
+        "text": "Managing in {servers} servers",
+        "enabled": true
+    },
+    {
+        "text": "Assisting {users} users",
+        "enabled": true
+    }
+]

@@ -1,6 +1,5 @@
 import json
 from datetime import datetime, timezone
-from os import path
 
 from utils.server_store import get_server, read_servers
 
@@ -15,8 +14,6 @@ def CheckIfBotChannel(channel_id, guild_id):
     Returns:
         bool: If the channel is a bot channel (True) or not (False).
     """
-    if not path.exists("data/servers.json"):
-        return False
     server = get_server(guild_id)
     return str(channel_id) in server.get("bot_channels", [])
 
@@ -30,8 +27,6 @@ def CheckIfAdminRole(role_ids, guild_id):
     Returns:
         bool: The result of the check (True if any role ID is an admin role, False otherwise).
     """
-    if not path.exists("data/servers.json"):
-        return False
     server = get_server(guild_id)
     admin_roles = server.get("admin_roles", [])
     for role_id in role_ids:
@@ -69,8 +64,6 @@ def CheckIfTeamCaptain(role_ids, guild_id, team_name):
         role_ids (array[int]): The role ID's of the user to check.
         guild_id (int): The guild/server ID to check.
         team_name (str): The name of the team to check."""
-    if not path.exists("data/servers.json"):
-        return False
     teams = get_server(guild_id).get("teams", [])
     for team in teams:
         if team.get("team_name") == team_name:
