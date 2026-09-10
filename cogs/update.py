@@ -95,7 +95,7 @@ class UpdateCog(commands.Cog):
             await ctx.send(f"Error reading server storage: {e}")
             return
 
-        if update_text_arg is not None:
+        if update_text_arg is not None and update_text_arg.strip():
             try:
                 update_text = await asyncio.to_thread(_write_update_text, update_text_arg)
             except ValueError as exc:
