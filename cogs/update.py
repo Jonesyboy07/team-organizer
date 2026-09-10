@@ -12,6 +12,15 @@ def _read_update_text() -> str:
     with open("data/update.txt", "r", encoding="utf-8") as f:
         return f.read().strip()
 
+
+def _write_update_text(update_text: str) -> str:
+    normalized = update_text.strip()
+    if not normalized:
+        raise ValueError("Update text cannot be empty.")
+    with open("data/update.txt", "w", encoding="utf-8") as f:
+        f.write(normalized)
+    return normalized
+
 class UpdateCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -53,7 +62,7 @@ class UpdateCog(commands.Cog):
                     f"- `{prefix}sync_commands` — sync slash commands to Discord",
                     f"- `{prefix}refresh_help_docs` — rebuild `data/commands.json`",
                     f"- `{prefix}set_version <value>` — update `data/version.txt`",
-                    f"- `{prefix}update` — broadcast `data/update.txt`",
+                    f"- `{prefix}update [text]` — save text (optional) and broadcast update",
                     f"- `{prefix}uptime` — show bot uptime",
                     f"- `{prefix}status_list` — show rotating statuses",
                     f"- `{prefix}status_add <text>` — add or re-enable a custom status",
@@ -73,9 +82,12 @@ class UpdateCog(commands.Cog):
             return
         await ctx.send(f"Bot version updated to `{normalized}`")
 
-    @commands.command(name="update", help="Send the latest update from data/update.txt to all update logs channels in every server.")
+    @commands.command(
+        name="update",
+        help="Owner only: send update text to configured channels. Optionally pass text to save into data/update.txt first.",
+    )
     @owner_only()
-    async def update(self, ctx):
+    async def update(self, ctx, *, update_text_arg: str | None = None):
         print("Update command invoked by user:", ctx.author.id)
         try:
             servers = read_servers()
@@ -83,14 +95,24 @@ class UpdateCog(commands.Cog):
             await ctx.send(f"Error reading server storage: {e}")
             return
 
-        try:
-            update_text = await asyncio.to_thread(_read_update_text)
-        except FileNotFoundError:
-            await ctx.send("No update.txt file found in the data folder.")
-            return
-        except Exception as e:  # noqa: BLE001
-            await ctx.send(f"Error reading update.txt: {e}")
-            return
+        if update_text_arg is not None:
+            try:
+                update_text = await asyncio.to_thread(_write_update_text, update_text_arg)
+            except ValueError as exc:
+                await ctx.send(str(exc))
+                return
+            except Exception as e:  # noqa: BLE001
+                await ctx.send(f"Error saving update.txt: {e}")
+                return
+        else:
+            try:
+                update_text = await asyncio.to_thread(_read_update_text)
+            except FileNotFoundError:
+                await ctx.send("No update.txt file found in the data folder.")
+                return
+            except Exception as e:  # noqa: BLE001
+                await ctx.send(f"Error reading update.txt: {e}")
+                return
 
         sent_count = 0
         failed_guilds = []
