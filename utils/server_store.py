@@ -7,6 +7,7 @@ from os import path
 SERVERS_FILE = "data/servers.json"
 DB_FILE = "data/storage.db"
 MIGRATION_KEY = "servers_json_migrated"
+BANNED_SERVERS_KEY = "banned_servers"
 
 
 def _normalize_guild_id(guild_id) -> str:
@@ -47,6 +48,21 @@ def _set_metadata(connection: sqlite3.Connection, key: str, value: str) -> None:
         "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         (key, value),
     )
+
+
+def _load_json_metadata(connection: sqlite3.Connection, key: str, default):
+    raw = _get_metadata(connection, key)
+    if raw is None:
+        return default
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return default
+    return parsed
+
+
+def _save_json_metadata(connection: sqlite3.Connection, key: str, value) -> None:
+    _set_metadata(connection, key, json.dumps(value))
 
 
 def _load_servers_backup() -> dict:
@@ -173,3 +189,41 @@ def save_teams(guild_id, teams: list) -> None:
     server_data["teams"] = teams
     data[gid] = server_data
     write_servers(data)
+
+
+def set_team_creation_blacklist(guild_id, blacklisted: bool = True) -> None:
+    server_data = get_server(guild_id)
+    server_data["team_creation_blacklisted"] = bool(blacklisted)
+    set_server(guild_id, server_data)
+
+
+def is_team_creation_blacklisted(guild_id) -> bool:
+    return bool(get_server(guild_id).get("team_creation_blacklisted", False))
+
+
+def get_banned_server_ids() -> set[str]:
+    initialize_storage()
+    with _connect() as connection:
+        _create_tables(connection)
+        stored = _load_json_metadata(connection, BANNED_SERVERS_KEY, [])
+    if not isinstance(stored, list):
+        return set()
+    return {str(value) for value in stored}
+
+
+def ban_server(guild_id) -> None:
+    initialize_storage()
+    gid = _normalize_guild_id(guild_id)
+    with _connect() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        _create_tables(connection)
+        stored = _load_json_metadata(connection, BANNED_SERVERS_KEY, [])
+        if not isinstance(stored, list):
+            stored = []
+        banned = {str(value) for value in stored}
+        banned.add(gid)
+        _save_json_metadata(connection, BANNED_SERVERS_KEY, sorted(banned))
+
+
+def is_server_banned(guild_id) -> bool:
+    return _normalize_guild_id(guild_id) in get_banned_server_ids()

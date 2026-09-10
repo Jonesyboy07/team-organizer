@@ -7,7 +7,14 @@ from utils.constants import MAJOR_TIMEZONES
 from utils.funcs import CheckIfAdminRole, log_to_discord
 from utils.game_service import get_game, get_game_name, get_games, get_region, get_region_name, get_regions
 from utils.match_request_flow import MatchRequestSetupView
-from utils.server_store import get_server, get_teams, is_setup_complete, save_teams, set_server
+from utils.server_store import (
+    get_server,
+    get_teams,
+    is_setup_complete,
+    is_team_creation_blacklisted,
+    save_teams,
+    set_server,
+)
 from utils.team_manage_flow import TeamDeleteView, TeamListView, TeamModifyView
 from utils.team_service import build_team_name_choices, find_team_by_name
 
@@ -128,6 +135,14 @@ class TeamCog(commands.Cog):
                 interaction,
                 "Server setup is incomplete.",
                 hint="Run /setup first.",
+            )
+            return
+
+        if is_team_creation_blacklisted(guild_id):
+            await CommandResponse.error(
+                interaction,
+                "Team creation is disabled for this server.",
+                hint="Contact the bot owner if you need this restriction removed.",
             )
             return
 

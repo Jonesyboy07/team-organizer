@@ -157,6 +157,12 @@ Owner-only text commands:
 - status_add
 - status_remove
 - status_refresh
+- a_server_count
+- a_servers
+- a_team_count
+- a_server_details
+- a_team_blacklist
+- a_ban_server
 
 ## Data Files
 
