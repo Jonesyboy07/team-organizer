@@ -9,7 +9,7 @@ Set `OWNER_ID` in `.env` to enable owner-only prefix commands.
 - `!sync_commands` — sync slash commands to Discord
 - `!refresh_help_docs` — rebuild `data/commands.json`
 - `!set_version <value>` — update `data/version.txt`
-- `!update` — broadcast `data/update.txt` to configured update channels
+- `!update [text]` — optionally save `text` to `data/update.txt`, then broadcast to configured update channels
 - `!status_list` — list default and custom rotating statuses
 - `!status_add <text>` — add or re-enable a custom rotating status
 - `!status_remove <exact text>` — disable a status without deleting it
