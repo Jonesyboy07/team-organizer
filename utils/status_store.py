@@ -1,5 +1,6 @@
 import json
 import os
+import tempfile
 from itertools import chain
 
 from utils.server_store import read_servers
@@ -23,6 +24,9 @@ def ensure_status_files() -> None:
     if not os.path.exists(DEFAULT_STATUSES_FILE):
         with open(DEFAULT_STATUSES_FILE, "w", encoding="utf-8") as handle:
             json.dump(DEFAULT_STATUSES, handle, indent=4)
+    if not os.path.exists(CUSTOM_STATUSES_FILE):
+        with open(CUSTOM_STATUSES_FILE, "w", encoding="utf-8") as handle:
+            json.dump([], handle, indent=4)
 
 
 def _read_status_file(file_path: str) -> list[dict]:
@@ -40,8 +44,11 @@ def _read_status_file(file_path: str) -> list[dict]:
 
 def _write_status_file(file_path: str, entries: list[dict]) -> None:
     ensure_status_files()
-    with open(file_path, "w", encoding="utf-8") as handle:
+    parent = os.path.dirname(file_path) or "."
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=parent, delete=False) as handle:
         json.dump(entries, handle, indent=4)
+        temp_path = handle.name
+    os.replace(temp_path, file_path)
 
 
 def list_statuses() -> list[dict]:

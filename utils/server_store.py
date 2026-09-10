@@ -68,12 +68,14 @@ def initialize_storage(logger=None) -> bool:
     with _connect() as connection:
         _create_tables(connection)
         if _get_metadata(connection, MIGRATION_KEY) is None:
-            backup_data = _load_servers_backup()
-            for guild_id, server_data in backup_data.items():
-                connection.execute(
-                    "INSERT OR REPLACE INTO servers(guild_id, data) VALUES(?, ?)",
-                    (str(guild_id), json.dumps(server_data)),
-                )
+            existing_rows = connection.execute("SELECT COUNT(*) FROM servers").fetchone()[0]
+            if existing_rows == 0:
+                backup_data = _load_servers_backup()
+                for guild_id, server_data in backup_data.items():
+                    connection.execute(
+                        "INSERT OR REPLACE INTO servers(guild_id, data) VALUES(?, ?)",
+                        (str(guild_id), json.dumps(server_data)),
+                    )
             _set_metadata(
                 connection,
                 MIGRATION_KEY,
@@ -109,9 +111,20 @@ def write_servers(data: dict, indent: int = 4) -> None:
     with _connect() as connection:
         _create_tables(connection)
         connection.execute("BEGIN IMMEDIATE")
-        connection.execute("DELETE FROM servers")
+        desired_ids = {_normalize_guild_id(guild_id) for guild_id in data}
+        existing_ids = {
+            row[0]
+            for row in connection.execute("SELECT guild_id FROM servers").fetchall()
+        }
+        stale_ids = existing_ids - desired_ids
+        if stale_ids:
+            connection.executemany(
+                "DELETE FROM servers WHERE guild_id = ?",
+                [(guild_id,) for guild_id in stale_ids],
+            )
         connection.executemany(
-            "INSERT INTO servers(guild_id, data) VALUES(?, ?)",
+            "INSERT INTO servers(guild_id, data) VALUES(?, ?) "
+            "ON CONFLICT(guild_id) DO UPDATE SET data = excluded.data",
             [
                 (_normalize_guild_id(guild_id), json.dumps(server_data))
                 for guild_id, server_data in data.items()

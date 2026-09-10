@@ -57,11 +57,18 @@ class StatusCog(commands.Cog):
             await ctx.send("No rotating statuses are configured.")
             return
 
-        lines = ["Rotating statuses:"]
+        chunks = [["Rotating statuses:"]]
         for entry in entries:
             state = "enabled" if entry.get("enabled", True) else "disabled"
-            lines.append(f"- [{entry['source']}] {entry['text']} ({state})")
-        await ctx.send("\n".join(lines)[:1900])
+            line = f"- [{entry['source']}] {entry['text']} ({state})"
+            candidate = "\n".join([*chunks[-1], line])
+            if len(candidate) > 1900:
+                chunks.append([line])
+            else:
+                chunks[-1].append(line)
+
+        for chunk in chunks:
+            await ctx.send("\n".join(chunk))
 
     @commands.command(name="status_add", help="Owner only: add or re-enable a rotating status.")
     @owner_only()
