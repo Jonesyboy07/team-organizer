@@ -14,7 +14,12 @@ DEFAULT_STATUSES = [
 
 
 def ensure_status_files() -> None:
-    os.makedirs("data", exist_ok=True)
+    default_parent = os.path.dirname(DEFAULT_STATUSES_FILE)
+    custom_parent = os.path.dirname(CUSTOM_STATUSES_FILE)
+    if default_parent:
+        os.makedirs(default_parent, exist_ok=True)
+    if custom_parent:
+        os.makedirs(custom_parent, exist_ok=True)
     if not os.path.exists(DEFAULT_STATUSES_FILE):
         with open(DEFAULT_STATUSES_FILE, "w", encoding="utf-8") as handle:
             json.dump(DEFAULT_STATUSES, handle, indent=4)
@@ -34,6 +39,7 @@ def _read_status_file(file_path: str) -> list[dict]:
 
 
 def _write_status_file(file_path: str, entries: list[dict]) -> None:
+    ensure_status_files()
     with open(file_path, "w", encoding="utf-8") as handle:
         json.dump(entries, handle, indent=4)
 
