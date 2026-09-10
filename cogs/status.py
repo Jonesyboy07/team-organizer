@@ -1,3 +1,5 @@
+import asyncio
+
 import discord
 from discord.ext import commands, tasks
 
@@ -16,6 +18,7 @@ class StatusCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self._status_index = 0
+        self._status_lock = asyncio.Lock()
 
     async def cog_load(self):
         ensure_status_files()
@@ -27,12 +30,13 @@ class StatusCog(commands.Cog):
             self.rotate_status.cancel()
 
     async def _apply_next_status(self) -> str:
-        statuses = get_enabled_statuses()
-        entry = statuses[self._status_index % len(statuses)]
-        self._status_index += 1
-        text = render_status(entry["text"], self.bot)
-        await self.bot.change_presence(activity=discord.CustomActivity(name=text))
-        return text
+        async with self._status_lock:
+            statuses = get_enabled_statuses()
+            entry = statuses[self._status_index % len(statuses)]
+            self._status_index += 1
+            text = render_status(entry["text"], self.bot)
+            await self.bot.change_presence(activity=discord.CustomActivity(name=text))
+            return text
 
     @tasks.loop(minutes=20)
     async def rotate_status(self):

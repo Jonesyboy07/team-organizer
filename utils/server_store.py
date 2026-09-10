@@ -66,6 +66,7 @@ def initialize_storage(logger=None) -> bool:
 
     migrated = False
     with _connect() as connection:
+        connection.execute("BEGIN IMMEDIATE")
         _create_tables(connection)
         if _get_metadata(connection, MIGRATION_KEY) is None:
             existing_rows = connection.execute("SELECT COUNT(*) FROM servers").fetchone()[0]

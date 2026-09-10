@@ -155,4 +155,5 @@ class HelpCog(commands.Cog):
                 await interaction.followup.send(message, ephemeral=True)
             else:
                 await interaction.response.send_message(message, ephemeral=True)
-        return
+            return
+        raise error
