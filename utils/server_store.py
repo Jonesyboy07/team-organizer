@@ -94,10 +94,13 @@ def read_servers() -> dict:
     with _connect() as connection:
         _create_tables(connection)
         rows = connection.execute("SELECT guild_id, data FROM servers").fetchall()
-    return {
-        guild_id: json.loads(payload)
-        for guild_id, payload in rows
-    }
+    data = {}
+    for guild_id, payload in rows:
+        try:
+            data[guild_id] = json.loads(payload)
+        except json.JSONDecodeError:
+            continue
+    return data
 
 
 def write_servers(data: dict, indent: int = 4) -> None:
@@ -105,6 +108,7 @@ def write_servers(data: dict, indent: int = 4) -> None:
     initialize_storage()
     with _connect() as connection:
         _create_tables(connection)
+        connection.execute("BEGIN IMMEDIATE")
         connection.execute("DELETE FROM servers")
         connection.executemany(
             "INSERT INTO servers(guild_id, data) VALUES(?, ?)",

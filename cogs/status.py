@@ -46,8 +46,8 @@ class StatusCog(commands.Cog):
     async def on_ready(self):
         if getattr(self.bot, "_status_initialized", False):
             return
-        await self._apply_next_status()
         self.bot._status_initialized = True
+        await self._apply_next_status()
 
     @commands.command(name="status_list", help="Owner only: list rotating statuses.")
     @owner_only()
@@ -85,7 +85,3 @@ class StatusCog(commands.Cog):
     async def status_refresh(self, ctx: commands.Context):
         text = await self._apply_next_status()
         await ctx.send(f"Status refreshed to: `{text}`")
-
-
-async def setup(bot: commands.Bot):
-    await bot.add_cog(StatusCog(bot))
