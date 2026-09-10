@@ -127,7 +127,10 @@ def get_server(guild_id) -> dict:
         row = connection.execute("SELECT data FROM servers WHERE guild_id = ?", (gid,)).fetchone()
     if row is None:
         return {}
-    return json.loads(row[0])
+    try:
+        return json.loads(row[0])
+    except json.JSONDecodeError:
+        return {}
 
 
 def set_server(guild_id, server_data: dict) -> None:
