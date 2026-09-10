@@ -110,7 +110,6 @@ def write_servers(data: dict, indent: int = 4) -> None:
     del indent
     initialize_storage()
     with _connect() as connection:
-        _create_tables(connection)
         connection.execute("BEGIN IMMEDIATE")
         desired_ids = {_normalize_guild_id(guild_id) for guild_id in data}
         existing_ids = {

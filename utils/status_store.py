@@ -2,11 +2,13 @@ import json
 import os
 import tempfile
 from itertools import chain
+from threading import Lock
 
 from utils.server_store import read_servers
 
 DEFAULT_STATUSES_FILE = "data/default_statuses.json"
 CUSTOM_STATUSES_FILE = "data/custom_statuses.json"
+STATUS_MUTATION_LOCK = Lock()
 DEFAULT_STATUSES = [
     {"text": "Helping out {total_teams} teams", "enabled": True},
     {"text": "Managing in {servers} servers", "enabled": True},
@@ -75,17 +77,18 @@ def add_custom_status(text: str) -> tuple[bool, dict]:
     if not normalized:
         raise ValueError("Status text cannot be empty.")
 
-    custom = _read_status_file(CUSTOM_STATUSES_FILE)
-    for entry in custom:
-        if entry.get("text", "").casefold() == normalized.casefold():
-            entry["enabled"] = True
-            _write_status_file(CUSTOM_STATUSES_FILE, custom)
-            return False, entry
+    with STATUS_MUTATION_LOCK:
+        custom = _read_status_file(CUSTOM_STATUSES_FILE)
+        for entry in custom:
+            if entry.get("text", "").casefold() == normalized.casefold():
+                entry["enabled"] = True
+                _write_status_file(CUSTOM_STATUSES_FILE, custom)
+                return False, entry
 
-    entry = {"text": normalized, "enabled": True}
-    custom.append(entry)
-    _write_status_file(CUSTOM_STATUSES_FILE, custom)
-    return True, entry
+        entry = {"text": normalized, "enabled": True}
+        custom.append(entry)
+        _write_status_file(CUSTOM_STATUSES_FILE, custom)
+        return True, entry
 
 
 def disable_status(text: str) -> dict | None:
@@ -94,16 +97,17 @@ def disable_status(text: str) -> dict | None:
     if not normalized:
         return None
 
-    for file_path, source in (
-        (CUSTOM_STATUSES_FILE, "custom"),
-        (DEFAULT_STATUSES_FILE, "default"),
-    ):
-        entries = _read_status_file(file_path)
-        for entry in entries:
-            if entry.get("text", "").casefold() == normalized:
-                entry["enabled"] = False
-                _write_status_file(file_path, entries)
-                return {**entry, "source": source}
+    with STATUS_MUTATION_LOCK:
+        for file_path, source in (
+            (CUSTOM_STATUSES_FILE, "custom"),
+            (DEFAULT_STATUSES_FILE, "default"),
+        ):
+            entries = _read_status_file(file_path)
+            for entry in entries:
+                if entry.get("text", "").casefold() == normalized:
+                    entry["enabled"] = False
+                    _write_status_file(file_path, entries)
+                    return {**entry, "source": source}
     return None
 
 

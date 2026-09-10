@@ -148,7 +148,7 @@ class HelpCog(commands.Cog):
 
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         command_name = getattr(interaction.command, "name", "")
-        if command_name == "help" and isinstance(error, app_commands.CommandOnCooldown):
+        if command_name == "help" and isinstance(error, app_commands.errors.CommandOnCooldown):
             retry_after = max(1, round(error.retry_after))
             message = f"Help is rate limited right now. Try again in about {retry_after} second(s)."
             if interaction.response.is_done():
