@@ -65,7 +65,7 @@ def build_weekly_intro_message(team_role_mention: str, start_date, event_id: str
     return (
         "## Weekly Scheduling\n"
         f"{team_role_mention}\n"
-        f"**{start_date.strftime('%A: The %d of %B')}**\n\n"
+        f"**{start_date.strftime('%A')}**\n\n"
         "React to each day below with the time slots you're available for.\n\n"
         f"{times_str}\n"
         f"{AVAILABLE_ALL_DAY_EMOJI} = Available all day, {UNAVAILABLE_ALL_DAY_EMOJI} = Unavailable all day\n"
@@ -84,7 +84,7 @@ async def send_weekly_schedule_messages(channel, team_role_mention, start_date, 
     for i in range(7):
         day_date = start_date + timedelta(days=i)
         date_key = day_date.strftime("%Y-%m-%d")
-        day_str = day_date.strftime("%A: The %d of %B")
+        day_str = day_date.strftime("%A")
         message = await channel.send(f"## {day_str}")
         for emoji in number_emojis:
             await message.add_reaction(emoji)
@@ -132,4 +132,3 @@ async def fetch_day_availability(channel, message_id) -> tuple[set[int], set[int
                 target.add(user.id)
 
     return available_ids, unavailable_ids, partial_ids
-
