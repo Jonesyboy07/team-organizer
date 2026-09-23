@@ -1,6 +1,8 @@
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from website import create_app
 from website.utils.dashboard_context import build_dashboard_context, get_storage_overview
@@ -51,6 +53,37 @@ class WebsiteContextTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Team Organizer Website Foundation", response.data)
         self.assertIn(b"React mount point", response.data)
+
+    def test_dashboard_route_uses_configured_env_values(self):
+        with patch.dict(
+            os.environ,
+            {
+                "WEBSITE_HOST": "localhost",
+                "WEBSITE_PORT": "9091",
+                "WEBSITE_SECRET_KEY": "test-secret",
+                "DISCORD_OAUTH_CLIENT_ID": "client-id",
+                "DISCORD_OAUTH_CLIENT_SECRET": "client-secret",
+            },
+            clear=False,
+        ):
+            app = create_app()
+
+        client = app.test_client()
+        response = client.get("/")
+
+        self.assertEqual(app.config["WEBSITE_PORT"], 9091)
+        self.assertEqual(
+            app.config["DISCORD_OAUTH_REDIRECT_URI"],
+            "http://localhost:9091/auth/discord/callback",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Discord OAuth2 login flow", response.data)
+        self.assertIn(b"Default port:</strong> 9091", response.data)
+
+    def test_invalid_port_raises_clear_error(self):
+        with patch.dict(os.environ, {"WEBSITE_PORT": "not-a-number"}, clear=False):
+            with self.assertRaisesRegex(ValueError, "WEBSITE_PORT must be set to a numeric port value."):
+                create_app()
 
 
 if __name__ == "__main__":
