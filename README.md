@@ -173,6 +173,19 @@ Owner-only text commands:
 - data/default_statuses.json stores tracked rotating status defaults.
 - data/custom_statuses.json stores owner-added rotating statuses.
 
+## Website Foundation
+
+- The starter dashboard lives under `website/`.
+- It uses a Flask backend with Jinja templates and a React mount point placeholder for future interactive widgets.
+- Discord auth is outlined through `.env` values: `DISCORD_OAUTH_CLIENT_ID`, `DISCORD_OAUTH_CLIENT_SECRET`, and `DISCORD_OAUTH_REDIRECT_URI`.
+- The app reads the current storage layout summary so dashboard work stays aligned with `docs/storage.md`.
+- The website defaults to port `9090`.
+
+Start it with:
+
+- Windows: `website\scripts\run-website.bat`
+- Linux or macOS: `./website/scripts/run-website.sh`
+
 ## Additional Documentation
 
 - docs/storage.md

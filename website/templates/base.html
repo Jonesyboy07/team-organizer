@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Team Organizer Dashboard{% endblock %}</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            background: #101522;
+            color: #f3f4f6;
+        }
+
+        main {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 2rem 1.25rem 3rem;
+        }
+
+        section {
+            background: #182033;
+            border: 1px solid #2b3a5c;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            padding: 1rem 1.25rem;
+        }
+
+        ul {
+            padding-left: 1.25rem;
+        }
+
+        .summary {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .summary-card {
+            min-width: 10rem;
+            background: #22304d;
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+        }
+
+        .storage-list li {
+            margin-bottom: 0.6rem;
+        }
+
+        .status-pill {
+            display: inline-block;
+            margin-left: 0.5rem;
+            padding: 0.1rem 0.45rem;
+            border-radius: 999px;
+            background: #2c7a4b;
+            font-size: 0.82rem;
+        }
+
+        .status-pill.missing {
+            background: #7a2c2c;
+        }
+
+        #react-root {
+            min-height: 4rem;
+            border: 1px dashed #5d77b2;
+            border-radius: 10px;
+            padding: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Website Foundation{% endblock %}
+
+{% block content %}
+<section>
+    <h1>Team Organizer Website Foundation</h1>
+    <p>This starter dashboard keeps the website scaffold aligned with the bot's current storage layout while the full dashboard is still being designed.</p>
+</section>
+
+<section>
+    <h2>Current outline</h2>
+    <ul>
+        <li><strong>Backend:</strong> {{ outline.backend }}</li>
+        <li><strong>Frontend:</strong> {{ outline.frontend }}</li>
+        <li><strong>Auth:</strong> {{ outline.auth }}</li>
+        <li><strong>Default port:</strong> {{ outline.port }}</li>
+    </ul>
+</section>
+
+<section>
+    <h2>Current data summary</h2>
+    <div class="summary">
+        <div class="summary-card">
+            <strong>Servers</strong>
+            <div>{{ storage.summary.server_count }}</div>
+        </div>
+        <div class="summary-card">
+            <strong>Teams</strong>
+            <div>{{ storage.summary.team_count }}</div>
+        </div>
+    </div>
+</section>
+
+<section>
+    <h2>Storage sources</h2>
+    <ul class="storage-list">
+        {% for source in storage.sources %}
+        <li>
+            <strong>{{ source.name }}</strong> ({{ source.kind }}) — <code>{{ source.path }}</code>
+            <span class="status-pill{% if not source.exists %} missing{% endif %}">
+                {{ "available" if source.exists else "missing" }}
+            </span>
+            <div>{{ source.description }}</div>
+        </li>
+        {% endfor %}
+    </ul>
+</section>
+
+<section>
+    <h2>React mount point</h2>
+    <div id="react-root" data-port="{{ outline.port }}"></div>
+</section>
+
+<section>
+    <h2>Next steps</h2>
+    <ul>
+        {% for step in next_steps %}
+        <li>{{ step }}</li>
+        {% endfor %}
+    </ul>
+</section>
+{% endblock %}

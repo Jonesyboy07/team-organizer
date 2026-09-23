@@ -34,3 +34,20 @@ No runtime storage changes have been made yet. Before adding a web dashboard tha
 - review concurrent write safety so bot actions and dashboard actions cannot overwrite each other
 - decide how backups, rollback, and recovery should work for both the database and any remaining file-based data
 - add tests around storage migrations and dashboard-facing CRUD flows once the data model is finalized
+
+## Current website foundation
+
+The starter website scaffold now lives in `website/` and currently does three things:
+
+- runs a Flask app on port `9090` by default
+- renders a Jinja dashboard shell with a React mount point placeholder for future client-side widgets
+- summarizes the current storage split so the dashboard foundation reflects the same database/file-backed data described above
+
+Discord OAuth variables are expected from the existing project `.env` file:
+
+- `DISCORD_OAUTH_CLIENT_ID`
+- `DISCORD_OAUTH_CLIENT_SECRET`
+- `DISCORD_OAUTH_REDIRECT_URI`
+- `WEBSITE_HOST`
+- `WEBSITE_PORT`
+- `WEBSITE_SECRET_KEY`
