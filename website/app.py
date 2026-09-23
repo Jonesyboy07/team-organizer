@@ -1,3 +1,4 @@
+import ipaddress
 import os
 import secrets
 
@@ -9,13 +10,31 @@ from .utils.dashboard_context import build_dashboard_context
 def _get_website_port() -> int:
     raw_port = os.getenv("WEBSITE_PORT", "9090")
     try:
-        return int(raw_port)
+        port = int(raw_port)
     except ValueError as exc:
         raise ValueError("WEBSITE_PORT must be set to a numeric port value.") from exc
+    if not 1 <= port <= 65535:
+        raise ValueError("WEBSITE_PORT must be between 1 and 65535.")
+    return port
+
+
+def _get_callback_host(host: str) -> str:
+    if host in {"", "0.0.0.0", "::", "[::]"}:
+        return "127.0.0.1"
+
+    normalized = host[1:-1] if host.startswith("[") and host.endswith("]") else host
+    try:
+        parsed_host = ipaddress.ip_address(normalized)
+    except ValueError:
+        return normalized
+
+    if parsed_host.version == 6:
+        return f"[{parsed_host.compressed}]"
+    return parsed_host.compressed
 
 
 def _get_redirect_uri(host: str, port: int) -> str:
-    callback_host = "127.0.0.1" if host in {"", "0.0.0.0"} else host
+    callback_host = _get_callback_host(host)
     redirect_uri = os.getenv("DISCORD_OAUTH_REDIRECT_URI")
     return redirect_uri or f"http://{callback_host}:{port}/auth/discord/callback"
 

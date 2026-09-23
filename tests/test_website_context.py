@@ -85,6 +85,13 @@ class WebsiteContextTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "WEBSITE_PORT must be set to a numeric port value."):
                 create_app()
 
+    def test_out_of_range_port_raises_clear_error(self):
+        for port in ("0", "70000"):
+            with self.subTest(port=port):
+                with patch.dict(os.environ, {"WEBSITE_PORT": port}, clear=False):
+                    with self.assertRaisesRegex(ValueError, "WEBSITE_PORT must be between 1 and 65535."):
+                        create_app()
+
     def test_blank_redirect_override_uses_derived_callback(self):
         with patch.dict(
             os.environ,
@@ -100,6 +107,23 @@ class WebsiteContextTests(unittest.TestCase):
         self.assertEqual(
             app.config["DISCORD_OAUTH_REDIRECT_URI"],
             "http://localhost:9092/auth/discord/callback",
+        )
+
+    def test_bind_all_host_uses_loopback_callback(self):
+        with patch.dict(
+            os.environ,
+            {
+                "WEBSITE_HOST": "0.0.0.0",
+                "WEBSITE_PORT": "9093",
+                "DISCORD_OAUTH_REDIRECT_URI": "",
+            },
+            clear=False,
+        ):
+            app = create_app()
+
+        self.assertEqual(
+            app.config["DISCORD_OAUTH_REDIRECT_URI"],
+            "http://127.0.0.1:9093/auth/discord/callback",
         )
 
 
