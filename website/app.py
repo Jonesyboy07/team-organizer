@@ -16,10 +16,8 @@ def _get_website_port() -> int:
 
 def _get_redirect_uri(host: str, port: int) -> str:
     callback_host = "127.0.0.1" if host in {"", "0.0.0.0"} else host
-    return os.getenv(
-        "DISCORD_OAUTH_REDIRECT_URI",
-        f"http://{callback_host}:{port}/auth/discord/callback",
-    )
+    redirect_uri = os.getenv("DISCORD_OAUTH_REDIRECT_URI")
+    return redirect_uri or f"http://{callback_host}:{port}/auth/discord/callback"
 
 
 def create_app() -> Flask:

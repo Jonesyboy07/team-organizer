@@ -43,11 +43,11 @@ The starter website scaffold now lives in `website/` and currently does three th
 - renders a Jinja dashboard shell with a React mount point placeholder for future client-side widgets
 - summarizes the current storage split so the dashboard foundation reflects the same database/file-backed data described above
 
-Discord OAuth variables are expected from the existing project `.env` file:
+Discord OAuth and website variables use the existing project `.env` file:
 
 - `DISCORD_OAUTH_CLIENT_ID`
 - `DISCORD_OAUTH_CLIENT_SECRET`
-- `DISCORD_OAUTH_REDIRECT_URI`
+- `DISCORD_OAUTH_REDIRECT_URI` (optional override; defaults to `WEBSITE_HOST` + `WEBSITE_PORT`)
 - `WEBSITE_HOST`
 - `WEBSITE_PORT`
 - `WEBSITE_SECRET_KEY`

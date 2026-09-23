@@ -177,7 +177,8 @@ Owner-only text commands:
 
 - The starter dashboard lives under `website/`.
 - It uses a Flask backend with Jinja templates and a React mount point placeholder for future interactive widgets.
-- Discord auth is outlined through `.env` values: `DISCORD_OAUTH_CLIENT_ID`, `DISCORD_OAUTH_CLIENT_SECRET`, and `DISCORD_OAUTH_REDIRECT_URI`.
+- Discord auth is outlined through `.env` values: `DISCORD_OAUTH_CLIENT_ID` and `DISCORD_OAUTH_CLIENT_SECRET`.
+- `DISCORD_OAUTH_REDIRECT_URI` is optional and only needed if you want to override the callback generated from `WEBSITE_HOST` and `WEBSITE_PORT`.
 - The app reads the current storage layout summary so dashboard work stays aligned with `docs/storage.md`.
 - The website defaults to port `9090`.
 
