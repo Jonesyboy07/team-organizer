@@ -1,6 +1,8 @@
+import json
+import sqlite3
 from pathlib import Path
 
-from utils.server_store import DB_FILE, SERVERS_FILE, read_servers
+from utils.server_store import DB_FILE, SERVERS_FILE, initialize_storage
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 FILE_BACKED_SOURCES = [
@@ -27,9 +29,34 @@ def _source_entry(name: str, relative_path: str, kind: str, description: str, re
     }
 
 
-def get_storage_overview(repo_root: Path | None = None, server_data_loader=read_servers) -> dict:
+def load_dashboard_servers(repo_root: Path | None = None) -> dict:
+    if repo_root is None or repo_root == ROOT_DIR:
+        initialize_storage()
+        db_path = Path(DB_FILE)
+    else:
+        db_path = repo_root / DB_FILE
+
+    if not db_path.exists():
+        return {}
+
+    with sqlite3.connect(db_path) as connection:
+        rows = connection.execute("SELECT guild_id, data FROM servers").fetchall()
+
+    servers = {}
+    for guild_id, payload in rows:
+        try:
+            servers[guild_id] = json.loads(payload)
+        except json.JSONDecodeError:
+            continue
+    return servers
+
+
+def get_storage_overview(repo_root: Path | None = None, server_data_loader=load_dashboard_servers) -> dict:
     repo_root = repo_root or ROOT_DIR
-    servers = server_data_loader()
+    try:
+        servers = server_data_loader(repo_root)
+    except TypeError:
+        servers = server_data_loader()
     team_count = sum(
         len(server_data.get("teams", []))
         for server_data in servers.values()
@@ -69,7 +96,7 @@ def build_dashboard_context(
     website_port: int = 9090,
     discord_oauth_ready: bool = False,
     repo_root: Path | None = None,
-    server_data_loader=read_servers,
+    server_data_loader=load_dashboard_servers,
 ) -> dict:
     return {
         "storage": get_storage_overview(repo_root=repo_root, server_data_loader=server_data_loader),

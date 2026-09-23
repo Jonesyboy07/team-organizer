@@ -47,7 +47,8 @@ Discord OAuth and website variables use the existing project `.env` file:
 
 - `DISCORD_OAUTH_CLIENT_ID`
 - `DISCORD_OAUTH_CLIENT_SECRET`
-- `DISCORD_OAUTH_REDIRECT_URI` (optional override; defaults to `WEBSITE_HOST` + `WEBSITE_PORT`)
+- `DISCORD_OAUTH_REDIRECT_URI` (optional override; defaults to `WEBSITE_URL_SCHEME` + `WEBSITE_HOST` + `WEBSITE_PORT`)
 - `WEBSITE_HOST`
 - `WEBSITE_PORT`
+- `WEBSITE_URL_SCHEME`
 - `WEBSITE_SECRET_KEY`

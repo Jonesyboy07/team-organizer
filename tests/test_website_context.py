@@ -60,6 +60,7 @@ class WebsiteContextTests(unittest.TestCase):
             {
                 "WEBSITE_HOST": "localhost",
                 "WEBSITE_PORT": "9091",
+                "WEBSITE_URL_SCHEME": "https",
                 "WEBSITE_SECRET_KEY": "test-secret",
                 "DISCORD_OAUTH_CLIENT_ID": "client-id",
                 "DISCORD_OAUTH_CLIENT_SECRET": "client-secret",
@@ -74,7 +75,7 @@ class WebsiteContextTests(unittest.TestCase):
         self.assertEqual(app.config["WEBSITE_PORT"], 9091)
         self.assertEqual(
             app.config["DISCORD_OAUTH_REDIRECT_URI"],
-            "http://localhost:9091/auth/discord/callback",
+            "https://localhost:9091/auth/discord/callback",
         )
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Discord OAuth2 login flow", response.data)

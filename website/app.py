@@ -33,24 +33,26 @@ def _get_callback_host(host: str) -> str:
     return parsed_host.compressed
 
 
-def _get_redirect_uri(host: str, port: int) -> str:
+def _get_redirect_uri(host: str, port: int, scheme: str) -> str:
     callback_host = _get_callback_host(host)
     redirect_uri = os.getenv("DISCORD_OAUTH_REDIRECT_URI")
-    return redirect_uri or f"http://{callback_host}:{port}/auth/discord/callback"
+    return redirect_uri or f"{scheme}://{callback_host}:{port}/auth/discord/callback"
 
 
 def create_app() -> Flask:
     website_host = os.getenv("WEBSITE_HOST", "127.0.0.1")
     website_port = _get_website_port()
+    website_scheme = os.getenv("WEBSITE_URL_SCHEME", "http")
 
     app = Flask(__name__, template_folder="templates", static_folder="static")
     app.config.update(
         SECRET_KEY=os.getenv("WEBSITE_SECRET_KEY") or secrets.token_hex(32),
         WEBSITE_HOST=website_host,
         WEBSITE_PORT=website_port,
+        WEBSITE_URL_SCHEME=website_scheme,
         DISCORD_OAUTH_CLIENT_ID=os.getenv("DISCORD_OAUTH_CLIENT_ID", os.getenv("DISCORD_CLIENT_ID", "")),
         DISCORD_OAUTH_CLIENT_SECRET=os.getenv("DISCORD_OAUTH_CLIENT_SECRET", ""),
-        DISCORD_OAUTH_REDIRECT_URI=_get_redirect_uri(website_host, website_port),
+        DISCORD_OAUTH_REDIRECT_URI=_get_redirect_uri(website_host, website_port, website_scheme),
     )
 
     @app.get("/")
