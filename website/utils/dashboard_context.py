@@ -39,8 +39,11 @@ def load_dashboard_servers(repo_root: Path | None = None) -> dict:
     if not db_path.exists():
         return {}
 
-    with sqlite3.connect(db_path) as connection:
-        rows = connection.execute("SELECT guild_id, data FROM servers").fetchall()
+    try:
+        with sqlite3.connect(db_path) as connection:
+            rows = connection.execute("SELECT guild_id, data FROM servers").fetchall()
+    except sqlite3.OperationalError:
+        return {}
 
     servers = {}
     for guild_id, payload in rows:

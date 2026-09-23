@@ -39,7 +39,7 @@
         <li>
             <strong>{{ source.name }}</strong> ({{ source.kind }}) — <code>{{ source.path }}</code>
             <span class="status-pill{% if not source.exists %} missing{% endif %}">
-                {{ "available" if source.exists else "missing" }}
+                {{ "✓ available" if source.exists else "⚠ missing" }}
             </span>
             <div>{{ source.description }}</div>
         </li>

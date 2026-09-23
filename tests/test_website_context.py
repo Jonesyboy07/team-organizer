@@ -33,6 +33,18 @@ class WebsiteContextTests(unittest.TestCase):
         self.assertTrue(overview["sources"][0]["exists"])
         self.assertTrue(any(source["path"] == "data/events" and source["exists"] for source in overview["sources"]))
 
+    def test_storage_overview_handles_uninitialized_database(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_root = Path(tmpdir)
+            data_dir = repo_root / "data"
+            data_dir.mkdir()
+            (data_dir / "storage.db").write_text("", encoding="utf-8")
+
+            overview = get_storage_overview(repo_root=repo_root)
+
+        self.assertEqual(overview["summary"]["server_count"], 0)
+        self.assertEqual(overview["summary"]["team_count"], 0)
+
     def test_dashboard_context_exposes_outline(self):
         context = build_dashboard_context(
             website_port=9090,

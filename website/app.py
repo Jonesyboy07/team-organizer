@@ -69,10 +69,8 @@ def create_app() -> Flask:
     return app
 
 
-app = create_app()
-
-
 def main() -> None:
+    app = create_app()
     app.run(
         host=app.config["WEBSITE_HOST"],
         port=app.config["WEBSITE_PORT"],
