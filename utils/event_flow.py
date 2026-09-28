@@ -14,7 +14,7 @@ def ensure_event_lists(event_data: dict):
 
 
 def _mention_list(user_ids):
-    return "\\n".join(f"<@{uid}>" for uid in user_ids) if user_ids else "No one yet"
+    return "\n".join(f"<@{uid}>" for uid in user_ids) if user_ids else "No one yet"
 
 
 class EventActionsRow(discord.ui.ActionRow):
@@ -48,9 +48,9 @@ class EventRSVPLayoutView(discord.ui.LayoutView):
 
         self.header = discord.ui.TextDisplay(f"## {event_data.get('event_name', 'Event')}")
         self.meta = discord.ui.TextDisplay(
-            f"{team_role_mention}\\n"
-            f"**Event Time:** <t:{unix_time}:F> ({tz_name})\\n"
-            f"**Relative:** <t:{unix_time}:R>\\n"
+            f"{team_role_mention}\n"
+            f"**Event Time:** <t:{unix_time}:F> ({tz_name})\n"
+            f"**Relative:** <t:{unix_time}:R>\n"
             "Use the buttons below to RSVP."
         )
         self.attendance = discord.ui.TextDisplay("")
@@ -74,9 +74,9 @@ class EventRSVPLayoutView(discord.ui.LayoutView):
         maybe = event_data.get("maybe", [])
         cant = event_data.get("cant", [])
         self.attendance.content = (
-            f"### Can Attend {ATTEND_EMOJI} ({len(attend)})\\n{_mention_list(attend)}\\n\\n"
-            f"### May be able to {MAYBE_EMOJI} ({len(maybe)})\\n{_mention_list(maybe)}\\n\\n"
-            f"### Can't Attend {CANT_EMOJI} ({len(cant)})\\n{_mention_list(cant)}"
+            f"### Can Attend {ATTEND_EMOJI} ({len(attend)})\n{_mention_list(attend)}\n\n"
+            f"### May be able to {MAYBE_EMOJI} ({len(maybe)})\n{_mention_list(maybe)}\n\n"
+            f"### Can't Attend {CANT_EMOJI} ({len(cant)})\n{_mention_list(cant)}"
         )
 
     async def handle_rsvp(self, interaction: discord.Interaction, status_key: str, label: str):
