@@ -48,6 +48,7 @@ def write_runtime_snapshot(
     started_at: str,
     guild_count: int,
     guild_catalog: list[dict] | None = None,
+    guilds: list[dict] | None = None,
 ) -> None:
     initialize_queue()
     snapshot = {
@@ -55,6 +56,7 @@ def write_runtime_snapshot(
         "guild_count": int(guild_count),
         "heartbeat_at": datetime.now(timezone.utc).isoformat(),
         "guild_catalog": guild_catalog or [],
+        "guilds": guilds or [],
     }
     with _connect() as connection:
         connection.execute(

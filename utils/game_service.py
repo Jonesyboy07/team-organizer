@@ -95,6 +95,20 @@ def blacklist_suggester(user_id: int) -> None:
         _write_catalog(catalog)
 
 
+def unblacklist_suggester(user_id: int) -> bool:
+    catalog = _read_catalog()
+    blocked = {int(value) for value in catalog.get("suggestion_blacklist", [])}
+    if int(user_id) not in blocked:
+        return False
+    catalog["suggestion_blacklist"] = [value for value in catalog["suggestion_blacklist"] if int(value) != int(user_id)]
+    _write_catalog(catalog)
+    return True
+
+
+def get_blacklisted_suggesters() -> list[int]:
+    return sorted({int(value) for value in _read_catalog().get("suggestion_blacklist", [])})
+
+
 def suggestion_cooldown_remaining(user_id: int, now: datetime | None = None) -> int:
     catalog = _read_catalog()
     timestamp = catalog["suggestion_cooldowns"].get(str(user_id))

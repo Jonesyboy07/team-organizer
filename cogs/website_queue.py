@@ -8,11 +8,23 @@ from discord.ext import commands, tasks
 from utils.constants import MAJOR_TIMEZONES
 from utils.event_flow import EventRSVPLayoutView
 from utils.funcs import CheckIfAdminRole, log_to_discord
-from utils.game_service import get_game
+from utils.game_service import SUGGESTION_GUILD_ID, blacklist_suggester, get_game, unblacklist_suggester
+from utils.owner_config import get_owner_id
 from utils.schedule_flow import get_previous_monday, send_weekly_schedule_messages
-from utils.server_store import get_server, is_setup_complete, save_teams, set_server
+from utils.server_store import (
+    ban_server,
+    get_server,
+    is_setup_complete,
+    read_servers,
+    save_teams,
+    set_server,
+    set_team_creation_blacklist,
+)
+from utils.status_store import add_custom_status, disable_status, enable_status
 from utils.team_service import find_team_by_name, resolve_team_timezone
 from utils.website_queue import claim_next_action, finish_action, initialize_queue, write_runtime_snapshot
+from utils.version_store import write_version
+from utils.website_owner_actions import require_bot_owner
 
 
 class WebsiteQueueCog(commands.Cog):
@@ -44,11 +56,17 @@ class WebsiteQueueCog(commands.Cog):
                 for channel in guild.text_channels
             ],
         } for guild in self.bot.guilds]
+        guilds = [{
+            "id": str(guild.id),
+            "name": guild.name,
+            "member_count": guild.member_count or 0,
+        } for guild in self.bot.guilds]
         await asyncio.to_thread(
             write_runtime_snapshot,
             started_at,
             len(self.bot.guilds),
             guild_catalog,
+            guilds,
         )
 
     @publish_runtime.before_loop
@@ -84,6 +102,10 @@ class WebsiteQueueCog(commands.Cog):
             print(f"[WebsiteQueueCog] Could not log action: {exc}")
 
     async def _execute(self, action: dict) -> str:
+        if action["action_type"].startswith("owner."):
+            require_bot_owner(action["user_id"], get_owner_id())
+            return await self._execute_owner_action(action)
+
         guild_id = int(action["guild_id"])
         user_id = int(action["user_id"])
         guild = self.bot.get_guild(guild_id)
@@ -140,6 +162,75 @@ class WebsiteQueueCog(commands.Cog):
             teams.remove(team)
             save_teams(guild_id, teams)
             return f"Team {team_name} deleted."
+        if action_type == "server.settings_update":
+            if not is_admin:
+                raise PermissionError("Only server administrators can change server settings.")
+            fields = payload.get("fields", {})
+            if not fields or not set(fields).issubset({"bot_channels", "admin_roles", "update_logs_channel", "bot_logs_channel", "SetupComplete"}):
+                raise ValueError("Unsupported server settings were requested.")
+            if "SetupComplete" in fields:
+                if fields["SetupComplete"] is not True:
+                    raise ValueError("Setup can only be marked complete after configuration.")
+                configured_bot_channels = fields.get("bot_channels", server.get("bot_channels", []))
+                configured_admin_roles = fields.get("admin_roles", server.get("admin_roles", []))
+                configured_update_channel = fields.get("update_logs_channel", server.get("update_logs_channel", ""))
+                configured_bot_log_channel = fields.get("bot_logs_channel", server.get("bot_logs_channel", ""))
+                if not configured_bot_channels or not configured_admin_roles:
+                    raise ValueError("Configure at least one command channel and administrator role first.")
+                if not configured_update_channel or not configured_bot_log_channel:
+                    raise ValueError("Configure both update and bot log channels first.")
+                fields["SetupComplete"] = True
+            for key in ("bot_channels", "admin_roles"):
+                if key in fields:
+                    if not isinstance(fields[key], list):
+                        raise ValueError(f"{key} must be a list of Discord IDs.")
+                    values = []
+                    for raw_id in fields[key]:
+                        try:
+                            identifier = int(raw_id)
+                        except (TypeError, ValueError) as exc:
+                            raise ValueError(f"Invalid ID in {key}.") from exc
+                        if key == "bot_channels":
+                            if not isinstance(guild.get_channel(identifier), discord.TextChannel):
+                                raise ValueError("Every bot command channel must be a text channel in this server.")
+                        elif guild.get_role(identifier) is None:
+                            raise ValueError("Every configured admin role must belong to this server.")
+                        values.append(str(identifier))
+                    fields[key] = values
+            for key in ("update_logs_channel", "bot_logs_channel"):
+                if key in fields:
+                    if fields[key] in {"", None}:
+                        server[key] = ""
+                        continue
+                    try:
+                        channel_id = int(fields[key])
+                    except (TypeError, ValueError) as exc:
+                        raise ValueError(f"{key} must be a text channel ID.") from exc
+                    if not isinstance(guild.get_channel(channel_id), discord.TextChannel):
+                        raise ValueError(f"{key} must be a text channel in this server.")
+                    fields[key] = str(channel_id)
+            server.update(fields)
+            server.setdefault("teams", [])
+            server.setdefault("leagues", [])
+            set_server(guild_id, server)
+            return "Server settings saved."
+        if action_type in {"suggestion.blacklist", "suggestion.unblacklist"}:
+            if member.id != guild.owner_id:
+                raise PermissionError("Only this server's Discord owner can manage suggestion access.")
+            if guild_id != str(SUGGESTION_GUILD_ID):
+                raise PermissionError("Suggestion moderation is only available in the configured suggestion server.")
+            try:
+                target_user_id = int(payload.get("target_user_id", 0))
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Enter a valid Discord user ID.") from exc
+            if target_user_id <= 0:
+                raise ValueError("Enter a valid Discord user ID.")
+            if action_type == "suggestion.blacklist":
+                blacklist_suggester(target_user_id)
+                return f"User {target_user_id} is blocked from suggesting games."
+            if not unblacklist_suggester(target_user_id):
+                raise ValueError("That user is not currently blacklisted.")
+            return f"User {target_user_id} can suggest games again."
         if action_type == "schedule.send":
             if not is_admin and not is_captain:
                 raise PermissionError("Only a team captain or server admin can send scheduling.")
@@ -167,6 +258,79 @@ class WebsiteQueueCog(commands.Cog):
                 raise PermissionError("Only a team captain or server admin can create an activity.")
             return await self._create_event(guild, team, payload)
         raise ValueError("Unknown website action.")
+
+    async def _execute_owner_action(self, action: dict) -> str:
+        action_type = action["action_type"]
+        payload = action["payload"]
+        if action_type == "owner.version_set":
+            return f"Bot version set to {write_version(payload.get('version', ''))}."
+        if action_type == "owner.status_add":
+            created, entry = add_custom_status(payload.get("text", ""))
+            return f"{'Added' if created else 'Re-enabled'} status: {entry['text']}"
+        if action_type == "owner.status_remove":
+            entry = disable_status(payload.get("text", ""))
+            if entry is None:
+                raise ValueError("No matching status was found.")
+            return f"Disabled status: {entry['text']}"
+        if action_type == "owner.status_enable":
+            entry = enable_status(payload.get("text", ""))
+            if entry is None:
+                raise ValueError("No matching status was found.")
+            return f"Enabled status: {entry['text']}"
+        if action_type == "owner.status_refresh":
+            cog = self.bot.get_cog("StatusCog")
+            if cog is None:
+                raise RuntimeError("Status controls are unavailable.")
+            return f"Bot status refreshed: {await cog._apply_next_status()}"
+        if action_type == "owner.sync_commands":
+            commands_synced = await self.bot.tree.sync()
+            return f"Synced {len(commands_synced)} application commands."
+        if action_type == "owner.refresh_help_docs":
+            from utils.command_docs import sync_commands_json
+
+            count = sync_commands_json(self.bot)
+            return f"Refreshed help documentation for {count} commands."
+        if action_type == "owner.update_broadcast":
+            text = payload.get("text", "").strip()
+            if not text or len(text) > 1800:
+                raise ValueError("Update text must contain 1 to 1800 characters.")
+            with open("data/update.txt", "w", encoding="utf-8") as handle:
+                handle.write(text)
+            servers = read_servers()
+            sent = 0
+            failed = 0
+            for target_guild_id, data in servers.items():
+                channel_id = data.get("update_logs_channel")
+                target_guild = self.bot.get_guild(int(target_guild_id))
+                channel = target_guild.get_channel(int(channel_id)) if target_guild and channel_id else None
+                if not isinstance(channel, discord.TextChannel):
+                    failed += 1
+                    continue
+                try:
+                    await channel.send(f"📢 **Update:**\n{text}")
+                    sent += 1
+                except discord.HTTPException:
+                    failed += 1
+            return f"Broadcast sent to {sent} server(s); {failed} failed or unconfigured."
+        if action_type in {"owner.server_blacklist", "owner.server_ban"}:
+            target_id = str(payload.get("target_guild_id", ""))
+            if not target_id.isdigit():
+                raise ValueError("Choose a valid server.")
+            if action_type == "owner.server_blacklist":
+                blacklisted = payload.get("blacklisted")
+                if not isinstance(blacklisted, bool):
+                    raise ValueError("Team creation state must be enabled or disabled.")
+                set_team_creation_blacklist(target_id, blacklisted)
+                state = "disabled" if blacklisted else "enabled"
+                return f"Team creation {state} for server {target_id}."
+            if payload.get("confirm_id") != target_id:
+                raise ValueError("The server ID confirmation did not match.")
+            ban_server(target_id)
+            target_guild = self.bot.get_guild(int(target_id))
+            if target_guild:
+                await target_guild.leave()
+            return f"Server {target_id} banned; bot left if it was still a member."
+        raise ValueError("Unknown owner action.")
 
     @staticmethod
     def _create_team(guild, server: dict, payload: dict):

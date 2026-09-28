@@ -11,8 +11,9 @@ from threading import Lock
 from flask import Blueprint, current_app, jsonify, redirect, request, session, url_for
 
 from utils.constants import MAJOR_TIMEZONES
-from utils.game_service import get_games, get_regions
-from utils.server_store import read_servers
+from utils.game_service import SUGGESTION_GUILD_ID, get_blacklisted_suggesters, get_games, get_regions
+from utils.server_store import get_banned_server_ids, read_servers
+from utils.status_store import list_statuses
 from utils.version_store import read_version
 from utils.website_queue import enqueue_action, list_user_actions, read_runtime_snapshot
 from website.utils.auth_store import create_session, delete_session, get_session, update_session
@@ -113,6 +114,19 @@ def _is_admin(guild: dict) -> bool:
         return bool(guild.get("owner"))
 
 
+def _is_bot_owner(identity: dict) -> bool:
+    owner_id = os.getenv("OWNER_ID", "")
+    return bool(owner_id and str(identity["user"]["id"]) == owner_id)
+
+
+def _read_update_text() -> str:
+    try:
+        with open("data/update.txt", encoding="utf-8") as handle:
+            return handle.read().strip()
+    except OSError:
+        return ""
+
+
 def _authorized_guilds(identity: dict) -> list[dict]:
     servers = read_servers()
     allowed = []
@@ -207,12 +221,11 @@ def session_status():
     identity = _identity()
     if identity is None:
         return jsonify(authenticated=False, login_url=url_for("website.discord_login"))
-    owner_id = os.getenv("OWNER_ID", "")
     return jsonify(
         authenticated=True,
         user={key: identity["user"].get(key) for key in ("id", "username", "global_name", "avatar")},
         csrf_token=identity["csrf_token"],
-        owner=bool(owner_id and str(identity["user"]["id"]) == owner_id),
+        owner=_is_bot_owner(identity),
     )
 
 
@@ -221,8 +234,7 @@ def session_status():
 def dashboard_data():
     identity = request.website_identity
     guilds = _authorized_guilds(identity)
-    owner_id = os.getenv("OWNER_ID", "")
-    is_owner = bool(owner_id and str(identity["user"]["id"]) == owner_id)
+    is_owner = _is_bot_owner(identity)
     servers = read_servers()
     runtime = read_runtime_snapshot()
     heartbeat_at = datetime.fromisoformat(runtime["heartbeat_at"]) if runtime else None
@@ -259,15 +271,52 @@ def dashboard_data():
     )
 
 
+@api.get("/api/admin")
+@_login_required
+def owner_admin_data():
+    identity = request.website_identity
+    if not _is_bot_owner(identity):
+        return jsonify(error="Only the configured bot owner can access this panel."), 403
+    runtime = read_runtime_snapshot() or {}
+    servers = read_servers()
+    known_guilds = {str(item.get("id")): item for item in runtime.get("guilds", [])}
+    guild_rows = []
+    for guild_id, guild in known_guilds.items():
+        settings = servers.get(guild_id, {})
+        guild_rows.append({
+            "id": guild_id,
+            "name": guild.get("name", "Unknown server"),
+            "member_count": guild.get("member_count", 0),
+            "team_count": len(settings.get("teams", [])),
+            "team_names": [team.get("team_name", "Unnamed team") for team in settings.get("teams", [])],
+            "setup_complete": bool(settings.get("SetupComplete", False)),
+            "team_creation_blacklisted": bool(settings.get("team_creation_blacklisted", False)),
+            "update_logs_configured": bool(settings.get("update_logs_channel")),
+        })
+    return jsonify(
+        servers=sorted(guild_rows, key=lambda item: item["name"].casefold()),
+        banned_server_ids=sorted(get_banned_server_ids()),
+        statuses=list_statuses(),
+        update_text=_read_update_text(),
+        version=read_version(),
+        heartbeat_at=runtime.get("heartbeat_at"),
+    )
+
+
 @api.get("/api/guilds/<guild_id>")
 @_login_required
 def guild_data(guild_id: str):
     identity = request.website_identity
     membership = _guild_permissions(identity).get(guild_id)
-    server = read_servers().get(guild_id)
-    if membership is None or server is None:
+    if membership is None:
         return jsonify(error="This server is not available to your account."), 404
     is_admin = _is_admin(membership)
+    is_suggestion_owner = bool(membership.get("owner") and guild_id == str(SUGGESTION_GUILD_ID))
+    server = read_servers().get(guild_id)
+    if server is None:
+        if not is_admin:
+            return jsonify(error="This server is not available to your account."), 404
+        server = {}
     runtime = read_runtime_snapshot() or {}
     catalog = next(
         (item for item in runtime.get("guild_catalog", []) if item.get("id") == guild_id),
@@ -297,8 +346,16 @@ def guild_data(guild_id: str):
         can_manage=is_admin,
         setup_complete=bool(server.get("SetupComplete", False)),
         team_creation_disabled=bool(server.get("team_creation_blacklisted", False)),
+        settings={
+            "bot_channels": [str(value) for value in server.get("bot_channels", [])],
+            "admin_roles": [str(value) for value in server.get("admin_roles", [])],
+            "update_logs_channel": str(server.get("update_logs_channel", "")),
+            "bot_logs_channel": str(server.get("bot_logs_channel", "")),
+        },
         roles=catalog.get("roles", []) if is_admin else [],
         channels=catalog.get("channels", []) if is_admin else [],
+        can_moderate_suggestions=is_suggestion_owner,
+        blacklisted_suggesters=get_blacklisted_suggesters() if is_suggestion_owner else [],
         teams=teams,
     )
 
@@ -308,7 +365,10 @@ def guild_data(guild_id: str):
 def action_history():
     identity = request.website_identity
     guilds = _authorized_guilds(identity)
-    actions = list_user_actions(identity["user"]["id"], {item["id"] for item in guilds})
+    guild_ids = {item["id"] for item in guilds}
+    if _is_bot_owner(identity):
+        guild_ids.add("0")
+    actions = list_user_actions(identity["user"]["id"], guild_ids)
     return jsonify(actions=actions)
 
 
@@ -324,16 +384,60 @@ def submit_action():
     payload = data.get("payload", {})
     if not isinstance(payload, dict):
         return jsonify(error="Action details must be an object."), 400
+    is_bot_owner = _is_bot_owner(identity)
+    owner_actions = {
+        "owner.version_set", "owner.update_broadcast", "owner.status_add", "owner.status_remove", "owner.status_enable",
+        "owner.status_refresh", "owner.sync_commands", "owner.refresh_help_docs",
+        "owner.server_blacklist", "owner.server_ban",
+    }
+    if action_type in owner_actions:
+        if not is_bot_owner:
+            return jsonify(error="Only the configured bot owner can do that."), 403
+        if guild_id != "0":
+            return jsonify(error="Bot-owner actions must use the global queue scope."), 400
+        if action_type == "owner.version_set" and not 1 <= len(str(payload.get("version", "")).strip()) <= 30:
+            return jsonify(error="Version must contain 1 to 30 characters."), 400
+        if action_type == "owner.update_broadcast" and not 1 <= len(str(payload.get("text", "")).strip()) <= 1800:
+            return jsonify(error="Update text must contain 1 to 1800 characters."), 400
+        if action_type in {"owner.status_add", "owner.status_remove", "owner.status_enable"} and not 1 <= len(str(payload.get("text", "")).strip()) <= 100:
+            return jsonify(error="Status text must contain 1 to 100 characters."), 400
+        if action_type in {"owner.server_blacklist", "owner.server_ban"}:
+            target_id = str(payload.get("target_guild_id", ""))
+            if not target_id.isdigit():
+                return jsonify(error="Choose a valid server."), 400
+            if action_type == "owner.server_blacklist" and not isinstance(payload.get("blacklisted"), bool):
+                return jsonify(error="Team creation state must be enabled or disabled."), 400
+            if action_type == "owner.server_ban" and payload.get("confirm_id") != target_id:
+                return jsonify(error="Confirm the server ID before banning it."), 400
+        action_id = enqueue_action("0", identity["user"]["id"], action_type, payload)
+        return jsonify(action_id=action_id, status="pending"), 202
+
     membership = _guild_permissions(identity).get(guild_id)
     server = read_servers().get(guild_id, {})
-    if membership is None or not server:
+    if membership is None:
         return jsonify(error="This server is not available to your account."), 404
     is_admin = _is_admin(membership)
+    if not server and not is_admin:
+        return jsonify(error="This server is not available to your account."), 404
     team_name = str(payload.get("team_name", ""))
     team = next((item for item in server.get("teams", []) if item.get("team_name", "").casefold() == team_name.casefold()), None)
     is_captain = bool(team and str(team.get("team_captain_id", "")) == str(identity["user"]["id"]))
 
-    if action_type == "team.create":
+    if action_type == "server.settings_update":
+        fields = payload.get("fields", {})
+        allowed_settings = {"bot_channels", "admin_roles", "update_logs_channel", "bot_logs_channel", "SetupComplete"}
+        if not is_admin:
+            return jsonify(error="Only server administrators can change server settings."), 403
+        if not isinstance(fields, dict) or not fields or not set(fields).issubset(allowed_settings):
+            return jsonify(error="Choose valid server settings."), 400
+        if any(key in fields and not isinstance(fields[key], list) for key in ("bot_channels", "admin_roles")):
+            return jsonify(error="Bot channels and admin roles must be selected as lists."), 400
+        for key in ("update_logs_channel", "bot_logs_channel"):
+            if key in fields and fields[key] not in {"", None} and not str(fields[key]).isdigit():
+                return jsonify(error=f"{key.replace('_', ' ').title()} must be selected from this server."), 400
+        if "SetupComplete" in fields and fields["SetupComplete"] is not True:
+            return jsonify(error="Setup can only be marked complete."), 400
+    elif action_type == "team.create":
         if not is_admin:
             return jsonify(error="Only server owners and administrators can create teams."), 403
         required = ("team_name", "game_id", "team_captain_id", "team_role_id", "team_schedule_channel", "team_request_channel", "timezone")
@@ -350,6 +454,11 @@ def submit_action():
             captain_fields.add("game_id")
         if not is_admin and (not is_captain or not set(fields).issubset(captain_fields)):
             return jsonify(error="You cannot change those team settings."), 403
+    elif action_type in {"suggestion.blacklist", "suggestion.unblacklist"}:
+        if not membership.get("owner") or guild_id != str(SUGGESTION_GUILD_ID):
+            return jsonify(error="Only the owner of the configured suggestion server can manage this list."), 403
+        if not str(payload.get("target_user_id", "")).isdigit() or int(payload["target_user_id"]) <= 0:
+            return jsonify(error="Enter a valid Discord user ID."), 400
     elif action_type in {"team.delete", "schedule.send", "event.create"}:
         if team is None:
             return jsonify(error="Choose an existing team."), 400

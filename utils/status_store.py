@@ -111,6 +111,26 @@ def disable_status(text: str) -> dict | None:
     return None
 
 
+def enable_status(text: str) -> dict | None:
+    ensure_status_files()
+    normalized = text.strip().casefold()
+    if not normalized:
+        return None
+
+    with STATUS_MUTATION_LOCK:
+        for file_path, source in (
+            (CUSTOM_STATUSES_FILE, "custom"),
+            (DEFAULT_STATUSES_FILE, "default"),
+        ):
+            entries = _read_status_file(file_path)
+            for entry in entries:
+                if entry.get("text", "").casefold() == normalized:
+                    entry["enabled"] = True
+                    _write_status_file(file_path, entries)
+                    return {**entry, "source": source}
+    return None
+
+
 def render_status(text: str, bot) -> str:
     servers = len(bot.guilds)
     users = len(set(bot.get_all_members()))

@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from utils.website_queue import claim_next_action, enqueue_action, finish_action, list_user_actions
+from utils.website_owner_actions import require_bot_owner
 
 
 class WebsiteQueueTests(unittest.TestCase):
@@ -23,6 +24,13 @@ class WebsiteQueueTests(unittest.TestCase):
                 self.assertEqual(visible[0]["status"], "completed")
                 self.assertEqual(visible[0]["result"], "Schedule sent")
                 self.assertEqual(hidden, [])
+
+    def test_bot_rejects_forged_owner_action(self):
+        with self.assertRaisesRegex(PermissionError, "configured bot owner"):
+            require_bot_owner("42", 950)
+
+    def test_configured_owner_can_pass_bot_guard(self):
+        self.assertIsNone(require_bot_owner("950", 950))
 
 
 if __name__ == "__main__":

@@ -24,6 +24,10 @@ The regular run scripts use Flask's development server for local use. For produc
 
 The logged-out page contains no server counts, individual statistics, update text, or guild names. After login, users see only servers they own/administer or configured teams they captain. The total tracked-user count is restricted to the `OWNER_ID` account.
 
+The `OWNER_ID` account gets an additional owner-only panel for bot version/update broadcasts, rotating statuses, command synchronization/help-cache refresh, and server blacklist/ban controls. Server owners/admins can manage command channels, administrator roles, log channels, and initial setup completion. Global owner actions are separately authorized by the bot worker; banning a server requires typing its ID to confirm.
+
+The Discord dependency is `discord.py>=2.6.0` because the bot uses Discord UI LayoutView/components APIs. Upgrade the bot environment from `requirements.txt` before restarting the bot with the V4 queue worker.
+
 ## Website Actions
 
 Team creation, owner settings changes, team preferences, schedule sends, activities, and team deletion are written to `website_actions` in `data/storage.db`. The bot's `WebsiteQueueCog` processes one request at a time and checks live Discord membership and permissions immediately before acting. The website displays the status and result for actions submitted by the signed-in user. Pending requests remain queued while the bot is offline.
