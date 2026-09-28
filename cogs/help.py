@@ -137,7 +137,7 @@ class HelpCog(commands.Cog):
         website_url = _website_base_url()
         if not website_url:
             await interaction.response.send_message(
-                "⚠️ Website URL is not configured. Set `WEBSITE_BASE_URL` in `.env`.",
+                "⚠️ Website link is not available right now.",
                 ephemeral=True
             )
             return
