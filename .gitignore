@@ -72,3 +72,9 @@ data/stats_hidden.json
 data/schedule_events
 data/custom_statuses.json
 update_breakdown.md
+
+# Runtime-generated Team Organizer data
+/data/commands.json
+/data/update.txt
+/data/version.txt
+/data/day_availability.json
