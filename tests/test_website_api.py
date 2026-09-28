@@ -185,11 +185,11 @@ class WebsiteApiAuthorizationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 202)
         enqueue.assert_called_once_with("100", "42", "server.settings_update", payload)
 
-    def test_suggestion_server_owner_can_manage_blacklist(self):
-        suggestion_owner = {**self.identity, "guilds": [{**self.identity["guilds"][0], "owner": True}]}
+    def test_suggestion_server_admin_can_manage_blacklist(self):
+        suggestion_admin = {**self.identity, "guilds": [{**self.identity["guilds"][0], "permissions": str(1 << 3)}]}
         payload = {"target_user_id": "123456"}
         with patch("website.api.SUGGESTION_GUILD_ID", 100), patch(
-            "website.api._identity", return_value=suggestion_owner
+            "website.api._identity", return_value=suggestion_admin
         ), patch("website.api.read_servers", return_value=self.servers), patch(
             "website.api.enqueue_action", return_value="suggestion-action"
         ) as enqueue:

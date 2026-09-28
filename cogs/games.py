@@ -16,7 +16,7 @@ from utils.game_service import (
 )
 
 
-def can_manage_game_suggestions(member: discord.Member, guild_owner_id: int, guild_id: int) -> bool:
+def can_moderate_game_suggestions(member: discord.Member, guild_owner_id: int, guild_id: int) -> bool:
     return bool(
         member.id == guild_owner_id
         or member.guild_permissions.administrator
@@ -47,24 +47,6 @@ class GamesCog(commands.Cog):
     async def suggest_game(self, interaction: discord.Interaction, game_name: str):
         if interaction.guild_id != SUGGESTION_GUILD_ID:
             await CommandResponse.error(interaction, "Game suggestions are only accepted in the central server.")
-            return
-        if interaction.guild is None:
-            await CommandResponse.error(interaction, "Game suggestions are only accepted in the central server.")
-            return
-
-        member = interaction.user if isinstance(interaction.user, discord.Member) else interaction.guild.get_member(interaction.user.id)
-        if member is None:
-            try:
-                member = await interaction.guild.fetch_member(interaction.user.id)
-            except (discord.HTTPException, discord.NotFound):
-                await CommandResponse.error(interaction, "Your server permissions could not be verified. Please try again.")
-                return
-
-        if not can_manage_game_suggestions(member, interaction.guild.owner_id, interaction.guild_id):
-            await CommandResponse.error(
-                interaction,
-                "Only server admins can submit game suggestions.",
-            )
             return
         if is_suggestion_blacklisted(interaction.user.id):
             await CommandResponse.error(interaction, "You are not allowed to submit game suggestions.")
@@ -102,8 +84,20 @@ class GamesCog(commands.Cog):
 
     @app_commands.command(name="blacklist_game_suggester", description="Prevent a user from submitting central game suggestions.")
     async def blacklist_game_suggester(self, interaction: discord.Interaction, user: discord.Member):
-        if interaction.guild_id != SUGGESTION_GUILD_ID or interaction.user.id != interaction.guild.owner_id:
-            await CommandResponse.error(interaction, "Only this guild's owner can use this command.")
+        if interaction.guild_id != SUGGESTION_GUILD_ID or interaction.guild is None:
+            await CommandResponse.error(interaction, "Suggestion moderation is only available in the central server.")
+            return
+
+        member = interaction.user if isinstance(interaction.user, discord.Member) else interaction.guild.get_member(interaction.user.id)
+        if member is None:
+            try:
+                member = await interaction.guild.fetch_member(interaction.user.id)
+            except (discord.HTTPException, discord.NotFound):
+                await CommandResponse.error(interaction, "Your server permissions could not be verified. Please try again.")
+                return
+
+        if not can_moderate_game_suggestions(member, interaction.guild.owner_id, interaction.guild_id):
+            await CommandResponse.error(interaction, "Only server admins can manage suggestion access.")
             return
 
         blacklist_suggester(user.id)

@@ -122,8 +122,8 @@
                     "name": "blacklist_game_suggester",
                     "description": "Prevent a user from submitting central game suggestions.",
                     "usage": "/blacklist_game_suggester user:<member>",
-                    "admin_required": false,
-                    "permission": "Central guild owner"
+                    "admin_required": true,
+                    "permission": "Central guild admin"
                 },
                 {
                     "name": "games",
@@ -136,8 +136,8 @@
                     "name": "suggest_game",
                     "description": "Suggest a game for the central game catalog.",
                     "usage": "/suggest_game game_name:<text>",
-                    "admin_required": true,
-                    "permission": "Central guild admin"
+                    "admin_required": false,
+                    "permission": "Central guild member"
                 }
             ]
         },

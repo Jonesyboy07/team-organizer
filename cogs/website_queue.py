@@ -215,8 +215,8 @@ class WebsiteQueueCog(commands.Cog):
             set_server(guild_id, server)
             return "Server settings saved."
         if action_type in {"suggestion.blacklist", "suggestion.unblacklist"}:
-            if member.id != guild.owner_id:
-                raise PermissionError("Only this server's Discord owner can manage suggestion access.")
+            if not is_admin:
+                raise PermissionError("Only server admins can manage suggestion access.")
             if guild_id != str(SUGGESTION_GUILD_ID):
                 raise PermissionError("Suggestion moderation is only available in the configured suggestion server.")
             try:

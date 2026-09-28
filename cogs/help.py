@@ -40,14 +40,14 @@ class HelpCog(commands.Cog):
                 "1. Run `/setup` and set channels/roles.\n"
                 "2. Create teams with `/create_team`.\n"
                 "3. Check config with `/listbotchannels` and `/listadminroles`.\n"
-                "4. Use `/suggest_game` in the central server when the catalog needs an admin-reviewed addition.\n\n"
+                "4. Use `/blacklist_game_suggester` in the central server if a user should lose suggestion access.\n\n"
                 "### For Team Captains\n"
                 "1. Use `/set_team_game` to assign your team's game.\n"
                 "2. Use `/set_scrim_requests` to control incoming scrim requests.\n"
                 "3. Use `/request_scrim` to request a same-game scrim.\n"
                 "4. Use `/send_schedule` to post weekly availability prompts.\n\n"
                 "### For Everyone\n"
-                "Use `/games` to browse supported games "
+                "Use `/games` to browse supported games, `/suggest_game` to suggest one, "
                 "and `/help` for full command docs."
             )
         )
