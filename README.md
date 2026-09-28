@@ -192,9 +192,9 @@ Build the frontend after changing its source:
 Run locally with:
 
 - Windows: `website\scripts\run-website.bat`
-- Linux or macOS: `./website/scripts/run-website.sh`
+- Linux or macOS: `sh website/scripts/run-website.sh`
 
-For Windows production use, install `requirements.txt` and run `website\scripts\run-website-prod.bat` behind a TLS reverse proxy. The site serves generic terms and privacy pages at `/terms` and `/privacy`; review them for your deployment and legal context.
+For production, install `requirements.txt` and run `website\scripts\run-website-prod.bat` on Windows or `sh website/scripts/run-website-prod.sh` on Linux/macOS behind a TLS reverse proxy. The site serves generic terms and privacy pages at `/terms` and `/privacy`; review them for your deployment and legal context.
 
 ## Additional Documentation
 
