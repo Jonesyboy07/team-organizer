@@ -143,7 +143,7 @@ class HelpCog(commands.Cog):
             return
         await interaction.response.send_message(
             f"🌐 Team Organizer website: {website_url}",
-            ephemeral= not CheckIfBotChannel(
+            ephemeral=not CheckIfBotChannel(
                 interaction.channel_id,
                 interaction.guild_id
             )
