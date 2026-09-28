@@ -8,6 +8,7 @@ from cogs.setup import SetupCog
 from cogs.status import StatusCog
 from cogs.team import TeamCog
 from cogs.update import UpdateCog
+from cogs.website_queue import WebsiteQueueCog
 
 
 def get_cogs(bot):
@@ -21,5 +22,6 @@ def get_cogs(bot):
         ScheduleCog(bot),
         EventCog(bot),
         ScrimCog(bot),
-        UpdateCog(bot)
+        UpdateCog(bot),
+        WebsiteQueueCog(bot)
     ]

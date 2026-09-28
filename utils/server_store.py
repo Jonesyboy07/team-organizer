@@ -1,6 +1,7 @@
 import json
 import os
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from os import path
 
@@ -14,8 +15,17 @@ def _normalize_guild_id(guild_id) -> str:
     return str(guild_id)
 
 
-def _connect() -> sqlite3.Connection:
-    return sqlite3.connect(DB_FILE)
+@contextmanager
+def _connect():
+    connection = sqlite3.connect(DB_FILE)
+    try:
+        yield connection
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
 
 
 def _create_tables(connection: sqlite3.Connection) -> None:

@@ -1,0 +1,29 @@
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from utils.website_queue import claim_next_action, enqueue_action, finish_action, list_user_actions
+
+
+class WebsiteQueueTests(unittest.TestCase):
+    def test_action_lifecycle_is_persisted_and_scoped(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            database = str(Path(tmpdir) / "storage.db")
+            with patch("utils.server_store.DB_FILE", database), patch("utils.website_queue.DB_FILE", database):
+                action_id = enqueue_action("42", "7", "send_schedule", {"team_name": "Alpha"})
+                action = claim_next_action()
+
+                self.assertEqual(action["action_id"], action_id)
+                self.assertEqual(action["payload"], {"team_name": "Alpha"})
+                finish_action(action_id, "completed", "Schedule sent")
+
+                visible = list_user_actions("7", {"42"})
+                hidden = list_user_actions("8", {"42"})
+                self.assertEqual(visible[0]["status"], "completed")
+                self.assertEqual(visible[0]["result"], "Schedule sent")
+                self.assertEqual(hidden, [])
+
+
+if __name__ == "__main__":
+    unittest.main()

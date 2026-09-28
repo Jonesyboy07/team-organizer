@@ -40,8 +40,11 @@ def load_dashboard_servers(repo_root: Path | None = None) -> dict:
         return {}
 
     try:
-        with sqlite3.connect(db_path) as connection:
+        connection = sqlite3.connect(db_path)
+        try:
             rows = connection.execute("SELECT guild_id, data FROM servers").fetchall()
+        finally:
+            connection.close()
     except sqlite3.OperationalError:
         return {}
 
@@ -95,23 +98,3 @@ def get_storage_overview(repo_root: Path | None = None, server_data_loader=load_
     }
 
 
-def build_dashboard_context(
-    website_port: int = 9090,
-    discord_oauth_ready: bool = False,
-    repo_root: Path | None = None,
-    server_data_loader=load_dashboard_servers,
-) -> dict:
-    return {
-        "storage": get_storage_overview(repo_root=repo_root, server_data_loader=server_data_loader),
-        "outline": {
-            "backend": "Flask routes and shared Python storage helpers",
-            "frontend": "Jinja page shell with a React mount point for future interactive widgets",
-            "auth": "Discord OAuth2 login flow" if discord_oauth_ready else "Discord OAuth2 env configured later",
-            "port": website_port,
-        },
-        "next_steps": [
-            "Wire Discord OAuth callbacks into Flask routes",
-            "Move dashboard-managed writes into shared storage helpers",
-            "Replace the placeholder React mount with authenticated widgets",
-        ],
-    }

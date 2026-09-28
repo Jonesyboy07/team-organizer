@@ -1,11 +1,14 @@
 import os
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 
 from website import create_app
-from website.utils.dashboard_context import build_dashboard_context, get_storage_overview
+from website.utils.auth_store import create_session, get_session
+from website.utils.dashboard_context import get_storage_overview
 
 
 class WebsiteContextTests(unittest.TestCase):
@@ -45,17 +48,6 @@ class WebsiteContextTests(unittest.TestCase):
         self.assertEqual(overview["summary"]["server_count"], 0)
         self.assertEqual(overview["summary"]["team_count"], 0)
 
-    def test_dashboard_context_exposes_outline(self):
-        context = build_dashboard_context(
-            website_port=9090,
-            discord_oauth_ready=True,
-            server_data_loader=lambda: {},
-        )
-
-        self.assertEqual(context["outline"]["port"], 9090)
-        self.assertEqual(context["outline"]["auth"], "Discord OAuth2 login flow")
-        self.assertIn("React mount point", context["outline"]["frontend"])
-
     def test_dashboard_route_renders_outline(self):
         app = create_app()
         client = app.test_client()
@@ -63,8 +55,55 @@ class WebsiteContextTests(unittest.TestCase):
         response = client.get("/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"Team Organizer Website Foundation", response.data)
-        self.assertIn(b"React mount point", response.data)
+        self.assertIn(b"react-root", response.data)
+        self.assertIn(b"dist/assets/dashboard.js", response.data)
+        self.assertEqual(response.headers["X-Frame-Options"], "DENY")
+        script = client.get("/static/dist/assets/dashboard.js")
+        self.assertEqual(script.mimetype, "application/javascript")
+        private_response = client.get("/api/dashboard")
+        self.assertEqual(private_response.status_code, 401)
+        self.assertNotIn(b"tracked_users", private_response.data)
+
+    def test_private_api_and_legal_pages(self):
+        app = create_app()
+        client = app.test_client()
+
+        status = client.get("/api/session")
+        self.assertFalse(status.json["authenticated"])
+        self.assertEqual(client.get("/api/dashboard").status_code, 401)
+        self.assertIn(b"not published for public browsing", client.get("/privacy").data)
+        self.assertIn(b"j0nesy_", client.get("/terms").data)
+
+    def test_oauth_login_requires_configuration(self):
+        with patch.dict(os.environ, {"DISCORD_OAUTH_CLIENT_SECRET": ""}, clear=False):
+            client = create_app().test_client()
+            response = client.get("/auth/discord/login")
+
+        self.assertEqual(response.status_code, 503)
+
+    def test_oauth_credentials_are_encrypted_in_persistent_session_store(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            database = str(Path(tmpdir) / "storage.db")
+            with patch.dict(os.environ, {"WEBSITE_SECRET_KEY": "test-stable-key"}, clear=False), patch(
+                "utils.server_store.DB_FILE", database
+            ), patch("utils.website_queue.DB_FILE", database), patch("website.utils.auth_store.DB_FILE", database):
+                app = create_app()
+                with app.app_context():
+                    session_id, _ = create_session(
+                        {"id": "42", "username": "tester"},
+                        {"access_token": "access-secret", "refresh_token": "refresh-secret", "expires_in": 3600},
+                        [{"id": "99", "name": "Test server"}],
+                    )
+                    restored = get_session(session_id)
+                connection = sqlite3.connect(database)
+                try:
+                    raw_session = connection.execute("SELECT data FROM website_sessions").fetchone()[0]
+                finally:
+                    connection.close()
+
+        self.assertEqual(restored["refresh_token"], "refresh-secret")
+        self.assertEqual(restored["guilds"][0]["id"], "99")
+        self.assertNotIn("refresh-secret", raw_session)
 
     def test_dashboard_route_uses_configured_env_values(self):
         with patch.dict(
@@ -72,7 +111,7 @@ class WebsiteContextTests(unittest.TestCase):
             {
                 "WEBSITE_HOST": "localhost",
                 "WEBSITE_PORT": "9091",
-                "WEBSITE_URL_SCHEME": "https",
+                "WEBSITE_BASE_URL": "https://dashboard.example.com/",
                 "WEBSITE_SECRET_KEY": "test-secret",
                 "DISCORD_OAUTH_CLIENT_ID": "client-id",
                 "DISCORD_OAUTH_CLIENT_SECRET": "client-secret",
@@ -87,11 +126,17 @@ class WebsiteContextTests(unittest.TestCase):
         self.assertEqual(app.config["WEBSITE_PORT"], 9091)
         self.assertEqual(
             app.config["DISCORD_OAUTH_REDIRECT_URI"],
-            "https://localhost:9091/auth/discord/callback",
+            "https://dashboard.example.com/auth/discord/callback",
         )
+        self.assertTrue(app.config["SESSION_COOKIE_SECURE"])
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"Discord OAuth2 login flow", response.data)
-        self.assertIn(b"Default port:</strong> 9091", response.data)
+        self.assertIn(b"dist/assets/dashboard.js", response.data)
+        self.assertIn("max-age=31536000", response.headers["Strict-Transport-Security"])
+        login = client.get("/auth/discord/login")
+        self.assertEqual(
+            parse_qs(urlsplit(login.location).query)["redirect_uri"],
+            ["https://dashboard.example.com/auth/discord/callback"],
+        )
 
     def test_invalid_port_raises_clear_error(self):
         with patch.dict(os.environ, {"WEBSITE_PORT": "not-a-number"}, clear=False):
@@ -111,7 +156,7 @@ class WebsiteContextTests(unittest.TestCase):
             {
                 "WEBSITE_HOST": "localhost",
                 "WEBSITE_PORT": "9092",
-                "DISCORD_OAUTH_REDIRECT_URI": "",
+                "WEBSITE_BASE_URL": "",
             },
             clear=False,
         ):
@@ -128,7 +173,7 @@ class WebsiteContextTests(unittest.TestCase):
             {
                 "WEBSITE_HOST": "0.0.0.0",
                 "WEBSITE_PORT": "9093",
-                "DISCORD_OAUTH_REDIRECT_URI": "",
+                "WEBSITE_BASE_URL": "",
             },
             clear=False,
         ):
@@ -138,6 +183,18 @@ class WebsiteContextTests(unittest.TestCase):
             app.config["DISCORD_OAUTH_REDIRECT_URI"],
             "http://127.0.0.1:9093/auth/discord/callback",
         )
+
+    def test_invalid_website_base_url_raises_clear_error(self):
+        for base_url in (
+            "ftp://dashboard.example.com",
+            "https://dashboard.example.com/path",
+            "https://dashboard.example.com?query=1",
+        ):
+            with self.subTest(base_url=base_url), patch.dict(
+                os.environ, {"WEBSITE_BASE_URL": base_url}, clear=False
+            ):
+                with self.assertRaisesRegex(ValueError, r"WEBSITE_BASE_URL must be an http\(s\) origin"):
+                    create_app()
 
 
 if __name__ == "__main__":

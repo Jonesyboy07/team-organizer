@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}{{ "Privacy Policy" if document == "privacy" else "Terms of Service" }} · Team Organizer{% endblock %}
+
+{% block body %}
+<main class="legal-page">
+    <header class="legal-header">
+        <a href="/" class="brand"><span class="brand-mark">TO</span><span>TEAM ORGANIZER<small>CONTROL ROOM</small></span></a>
+        <a href="/">Back to dashboard</a>
+    </header>
+    <article class="legal-content">
+        <div class="eyebrow">TEAM ORGANIZER <span class="eyebrow-rule"></span></div>
+        {% if document == "privacy" %}
+        <h1>Privacy Policy</h1>
+        <p class="legal-updated">Last updated: September 27, 2026</p>
+        <p>This dashboard is operated by the Team Organizer bot owner. It is a private management interface; server, team, activity, and personal tracking data are not published for public browsing, sold, or used for advertising.</p>
+        <h2>Information processed</h2>
+        <p>When you sign in, Discord provides your account identifier, display name, avatar, server memberships, and server permissions so the dashboard can show only the workspaces you are allowed to manage. The website keeps an OAuth session and rotating refresh credential encrypted at rest in the bot's local SQLite database so you can stay signed in. The browser receives only a random session identifier.</p>
+        <p>Dashboard actions may include team settings, selected channel and role identifiers, activity details, and the account that requested an action. These are stored in a local action queue until the bot completes or rejects them. Existing bot data and private statistics remain in the bot owner's configured storage. Personal tracking statistics are visible only to the bot owner.</p>
+        <h2>How information is used</h2>
+        <ul>
+            <li>Authenticate your Discord account and determine which servers and teams you can access.</li>
+            <li>Display private bot status, version, update notes, and authorized team configuration.</li>
+            <li>Pass requested operations to the bot, which checks membership and permissions again before acting.</li>
+            <li>Protect the service, keep an audit trail of requested actions, and diagnose failures.</li>
+        </ul>
+        <h2>Disclosure and storage</h2>
+        <p>Dashboard data is not shared publicly or provided to advertisers or data brokers. The website communicates with Discord to authenticate accounts and to carry out bot actions in Discord servers. Data is stored on the machine or hosting service chosen by the bot owner and remains subject to that host's access controls, backups, and security. No analytics or advertising trackers are used by this dashboard.</p>
+        <h2>Retention and your choices</h2>
+        <p>Sessions expire after 90 days without activity and can be ended immediately with Sign out or by revoking the application's authorization in Discord's authorized apps settings. Queue records are retained in the bot database for operational history. Existing team and bot records can be changed by authorized server managers or the bot owner. Ask the owner about access or deletion requests.</p>
+        <h2>Contact</h2>
+        <p>Contact the bot owner on Discord: <strong>j0nesy_</strong>.</p>
+        {% else %}
+        <h1>Terms of Service</h1>
+        <p class="legal-updated">Last updated: September 27, 2026</p>
+        <p>These terms cover use of the Team Organizer website and its connection to the Team Organizer Discord bot. By signing in or submitting an action, you agree to use the service only where you have permission.</p>
+        <h2>Authorized use</h2>
+        <p>Use only the servers and teams for which Discord grants you access. Do not attempt to access another person's account, evade permissions, disrupt the bot, or submit unlawful, abusive, or misleading content. Keep your Discord account secure and sign out on shared devices.</p>
+        <h2>Actions and availability</h2>
+        <p>Website requests enter a queue and are performed by the bot only when it is online and confirms your permissions. A request can be delayed, rejected, or fail because of configuration, Discord availability, channel permissions, or validation. Check the action status and the relevant Discord channel before retrying, especially for actions that could create duplicate messages.</p>
+        <p>The service is provided without a guarantee of uninterrupted availability or error-free operation. The bot owner may change, suspend, or discontinue website features. These terms do not replace Discord's own terms or server rules.</p>
+        <h2>Data and privacy</h2>
+        <p>Use of account, server, and team information is described in the <a href="/privacy">Privacy Policy</a>. Do not submit personal or sensitive information that is not needed for team coordination.</p>
+        <h2>Contact</h2>
+        <p>Questions about these terms or the service: contact <strong>j0nesy_</strong> on Discord.</p>
+        <p>This plain-language notice is general information, not legal advice. The operator should review it for the laws and hosting arrangements that apply to their deployment.</p>
+        {% endif %}
+    </article>
+</main>
+{% endblock %}

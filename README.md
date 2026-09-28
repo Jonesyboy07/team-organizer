@@ -173,24 +173,34 @@ Owner-only text commands:
 - data/default_statuses.json stores tracked rotating status defaults.
 - data/custom_statuses.json stores owner-added rotating statuses.
 
-## Website Foundation
+## Website Dashboard
 
-- The starter dashboard lives under `website/`.
-- It uses a Flask backend with Jinja templates and a React mount point placeholder for future interactive widgets.
-- Discord auth is outlined through `.env` values: `DISCORD_OAUTH_CLIENT_ID` and `DISCORD_OAUTH_CLIENT_SECRET`.
-- `DISCORD_OAUTH_REDIRECT_URI` is optional and only needed if you want to override the callback generated from `WEBSITE_URL_SCHEME`, `WEBSITE_HOST`, and `WEBSITE_PORT`.
-- The app reads the current storage layout summary so dashboard work stays aligned with `docs/storage.md`.
+- The dashboard lives under `website/` and uses a React/Vite frontend, Flask API, Discord OAuth, and a bot-consumed SQLite action queue.
+- Logged-out visitors see only the sign-in screen and legal pages. Guild details require Discord sign-in and are limited to servers the user owns/administers or teams they captain. Personal tracked-user statistics are owner-only.
+- Discord OAuth is configured through `.env` values: `DISCORD_OAUTH_CLIENT_ID` and `DISCORD_OAUTH_CLIENT_SECRET`.
+- Set `WEBSITE_BASE_URL` once to the full website origin, such as `http://127.0.0.1:9090` locally or `https://dashboard.example.com` publicly. The Discord callback is derived as `/auth/discord/callback` from this base URL.
+- The bot and website load the project's `.env` and share `data/storage.db`. The bot must be running to process team, scheduling, and activity actions.
+- Sessions last 90 days while active. OAuth refresh credentials are encrypted in `data/storage.db`; set a stable `WEBSITE_SECRET_KEY` so sessions survive restarts. Generate one with `py -c "import secrets; print(secrets.token_urlsafe(48))"`.
+- For internet-facing use, set `WEBSITE_BASE_URL` to the public HTTPS origin and put the site behind a TLS reverse proxy. Do not expose Flask's development server directly.
 - The website defaults to port `9090`.
 
-Start it with:
+Build the frontend after changing its source:
+
+- Windows: `website\scripts\build-frontend.bat`
+- Linux or macOS: `sh website/scripts/build-frontend.sh`
+
+Run locally with:
 
 - Windows: `website\scripts\run-website.bat`
 - Linux or macOS: `./website/scripts/run-website.sh`
+
+For Windows production use, install `requirements.txt` and run `website\scripts\run-website-prod.bat` behind a TLS reverse proxy. The site serves generic terms and privacy pages at `/terms` and `/privacy`; review them for your deployment and legal context.
 
 ## Additional Documentation
 
 - docs/storage.md
 - docs/owner-commands.md
+- website/README.md
 
 ## Troubleshooting
 

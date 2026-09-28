@@ -22,33 +22,29 @@ Server configuration now lives in `data/storage.db`.
 - `data/version.txt` for the bot version string
 - `data/update.txt` for owner update-message content
 
-## Dashboard prep checklist
+## Remaining storage work
 
-No runtime storage changes have been made yet. Before adding a web dashboard that reads or updates `data/storage.db`, we should:
+The website now stores its sessions, bot heartbeat, and action queue in `data/storage.db`. Server configuration remains JSON serialized in the `servers` table; events, schedules, stats, version, and update notes remain in their existing files. Website writes are limited to queued actions and are revalidated by the bot before changing server records or sending Discord messages.
 
-- document the current SQLite schema and the JSON/text files that still hold bot state
-- decide which dashboard-managed data must move into SQLite instead of staying split across JSON files and folders
-- add schema versioning and explicit migrations for future database changes
-- define which records the dashboard may create, edit, or delete and validate those write paths in one shared storage layer
-- standardize IDs, required fields, and timestamps so bot code and dashboard code read the same shapes
-- review concurrent write safety so bot actions and dashboard actions cannot overwrite each other
-- decide how backups, rollback, and recovery should work for both the database and any remaining file-based data
-- add tests around storage migrations and dashboard-facing CRUD flows once the data model is finalized
+Longer-term storage work remains:
 
-## Current website foundation
+- add formal schema versions and migrations for future SQLite changes
+- review same-guild concurrent team edits and backup/restore procedures
+- add broader migration and bot/website concurrency tests as those shared storage paths expand
 
-The starter website scaffold now lives in `website/` and currently does three things:
+## Website integration
 
-- runs a Flask app on port `9090` by default
-- renders a Jinja dashboard shell with a React mount point placeholder for future client-side widgets
-- summarizes the current storage split so the dashboard foundation reflects the same database/file-backed data described above
+The website in `website/` uses a React/Vite frontend and Flask API. The bot and website share `data/storage.db`; a SQLite action queue lets Flask submit requests while the bot performs Discord operations and checks permissions again. OAuth sessions and runtime heartbeats are also stored in this database. OAuth credentials are encrypted using the stable `WEBSITE_SECRET_KEY`.
+
+The dashboard is private by default. Logged-out visitors can only see the sign-in screen and legal pages. After Discord OAuth, users see only guilds they own/administer or teams they captain; the tracked-user statistic is visible only to the configured bot owner. Sessions roll forward while active and expire after 90 days of inactivity. Discord refresh credentials renew the login and update guild membership and permissions.
 
 Discord OAuth and website variables use the existing project `.env` file:
 
 - `DISCORD_OAUTH_CLIENT_ID`
 - `DISCORD_OAUTH_CLIENT_SECRET`
-- `DISCORD_OAUTH_REDIRECT_URI` (optional override; defaults to `WEBSITE_URL_SCHEME` + `WEBSITE_HOST` + `WEBSITE_PORT`)
+- `WEBSITE_BASE_URL` (canonical website origin; the OAuth callback path is derived automatically)
 - `WEBSITE_HOST`
 - `WEBSITE_PORT`
-- `WEBSITE_URL_SCHEME`
-- `WEBSITE_SECRET_KEY`
+- `WEBSITE_SECRET_KEY` (stable across restarts; used to sign sessions and encrypt stored OAuth credentials)
+
+Build the frontend with `website/scripts/build-frontend.bat` (Windows) or `sh website/scripts/build-frontend.sh` (Linux/macOS). The bot must be running to drain the action queue. Internet-facing deployments require HTTPS and a TLS reverse proxy; see `website/README.md`.
