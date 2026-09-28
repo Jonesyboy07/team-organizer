@@ -73,6 +73,7 @@ function Dashboard() {
   const [teamChoice, setTeamChoice] = useState("");
   const [refreshIntervalMs, setRefreshIntervalMs] = useState(10000);
   const refreshResetRef = useRef(null);
+  const selectedRef = useRef("");
 
   async function loadWorkspace() {
     const [dashboard, history] = await Promise.all([api("/api/dashboard"), api("/api/actions")]);
@@ -103,6 +104,10 @@ function Dashboard() {
       setTeamChoice((current) => current || value.teams[0]?.team_name || "");
     }).catch((error) => setMessage(error.message));
   }, [selected, auth]);
+
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
 
   useEffect(() => {
     if (!auth?.authenticated) return undefined;
@@ -138,7 +143,9 @@ function Dashboard() {
       if (guildId) {
         try {
           const guildData = await api(`/api/guilds/${guildId}`);
-          setGuild(guildData);
+          if (selectedRef.current === guildId) {
+            setGuild(guildData);
+          }
         } catch {}
       }
       setRefreshIntervalMs(2500);
