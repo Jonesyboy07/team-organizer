@@ -3,6 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from utils.command_helpers import CommandResponse
+from utils.funcs import CheckIfAdminRole
 from utils.game_service import (
     SUGGESTION_CHANNEL_ID,
     SUGGESTION_GUILD_ID,
@@ -13,6 +14,14 @@ from utils.game_service import (
     is_suggestion_blacklisted,
     suggestion_cooldown_remaining,
 )
+
+
+def can_moderate_game_suggestions(member: discord.Member, guild_owner_id: int, guild_id: int) -> bool:
+    return bool(
+        member.id == guild_owner_id
+        or member.guild_permissions.administrator
+        or CheckIfAdminRole([role.id for role in member.roles], str(guild_id))
+    )
 
 
 class GamesCog(commands.Cog):
@@ -75,8 +84,20 @@ class GamesCog(commands.Cog):
 
     @app_commands.command(name="blacklist_game_suggester", description="Prevent a user from submitting central game suggestions.")
     async def blacklist_game_suggester(self, interaction: discord.Interaction, user: discord.Member):
-        if interaction.guild_id != SUGGESTION_GUILD_ID or interaction.user.id != interaction.guild.owner_id:
-            await CommandResponse.error(interaction, "Only this guild's owner can use this command.")
+        if interaction.guild_id != SUGGESTION_GUILD_ID or interaction.guild is None:
+            await CommandResponse.error(interaction, "Suggestion moderation is only available in the central server.")
+            return
+
+        member = interaction.user if isinstance(interaction.user, discord.Member) else interaction.guild.get_member(interaction.user.id)
+        if member is None:
+            try:
+                member = await interaction.guild.fetch_member(interaction.user.id)
+            except (discord.HTTPException, discord.NotFound):
+                await CommandResponse.error(interaction, "Your server permissions could not be verified. Please try again.")
+                return
+
+        if not can_moderate_game_suggestions(member, interaction.guild.owner_id, interaction.guild_id):
+            await CommandResponse.error(interaction, "Only server admins can manage suggestion access.")
             return
 
         blacklist_suggester(user.id)

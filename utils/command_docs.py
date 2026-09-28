@@ -42,7 +42,7 @@ COMMAND_SECTION = {
 
 COMMAND_PERMISSION = {
     "suggest_game": "Central guild member",
-    "blacklist_game_suggester": "Central guild owner",
+    "blacklist_game_suggester": "Central guild admin",
     "set_team_game": "Team captain or guild owner",
     "set_scrim_requests": "Team captain or guild owner",
     "set_team_region": "Team captain or guild owner",
@@ -66,6 +66,7 @@ COMMAND_ADMIN_REQUIRED = {
     "delete_team",
     "modify_team",
     "event",
+    "blacklist_game_suggester",
 }
 
 

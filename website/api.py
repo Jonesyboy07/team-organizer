@@ -311,7 +311,7 @@ def guild_data(guild_id: str):
     if membership is None:
         return jsonify(error="This server is not available to your account."), 404
     is_admin = _is_admin(membership)
-    is_suggestion_owner = bool(membership.get("owner") and guild_id == str(SUGGESTION_GUILD_ID))
+    can_moderate_suggestions = bool(is_admin and guild_id == str(SUGGESTION_GUILD_ID))
     server = read_servers().get(guild_id)
     if server is None:
         if not is_admin:
@@ -354,8 +354,8 @@ def guild_data(guild_id: str):
         },
         roles=catalog.get("roles", []) if is_admin else [],
         channels=catalog.get("channels", []) if is_admin else [],
-        can_moderate_suggestions=is_suggestion_owner,
-        blacklisted_suggesters=get_blacklisted_suggesters() if is_suggestion_owner else [],
+        can_moderate_suggestions=can_moderate_suggestions,
+        blacklisted_suggesters=get_blacklisted_suggesters() if can_moderate_suggestions else [],
         teams=teams,
     )
 
@@ -455,8 +455,8 @@ def submit_action():
         if not is_admin and (not is_captain or not set(fields).issubset(captain_fields)):
             return jsonify(error="You cannot change those team settings."), 403
     elif action_type in {"suggestion.blacklist", "suggestion.unblacklist"}:
-        if not membership.get("owner") or guild_id != str(SUGGESTION_GUILD_ID):
-            return jsonify(error="Only the owner of the configured suggestion server can manage this list."), 403
+        if not is_admin or guild_id != str(SUGGESTION_GUILD_ID):
+            return jsonify(error="Only server admins in the configured suggestion server can manage this list."), 403
         if not str(payload.get("target_user_id", "")).isdigit() or int(payload["target_user_id"]) <= 0:
             return jsonify(error="Enter a valid Discord user ID."), 400
     elif action_type in {"team.delete", "schedule.send", "event.create"}:

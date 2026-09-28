@@ -73,7 +73,7 @@ class WebsiteQueueCog(commands.Cog):
     async def wait_for_runtime_ready(self):
         await self.bot.wait_until_ready()
 
-    @tasks.loop(seconds=5)
+    @tasks.loop(seconds=2)
     async def process_actions(self):
         try:
             action = await asyncio.to_thread(claim_next_action)
@@ -215,8 +215,8 @@ class WebsiteQueueCog(commands.Cog):
             set_server(guild_id, server)
             return "Server settings saved."
         if action_type in {"suggestion.blacklist", "suggestion.unblacklist"}:
-            if member.id != guild.owner_id:
-                raise PermissionError("Only this server's Discord owner can manage suggestion access.")
+            if not is_admin:
+                raise PermissionError("Only server admins can manage suggestion access.")
             if guild_id != str(SUGGESTION_GUILD_ID):
                 raise PermissionError("Suggestion moderation is only available in the configured suggestion server.")
             try:

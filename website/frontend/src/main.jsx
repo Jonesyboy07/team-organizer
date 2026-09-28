@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
 
@@ -71,6 +71,9 @@ function Dashboard() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [teamChoice, setTeamChoice] = useState("");
+  const [refreshIntervalMs, setRefreshIntervalMs] = useState(10000);
+  const refreshResetRef = useRef(null);
+  const selectedRef = useRef("");
 
   async function loadWorkspace() {
     const [dashboard, history] = await Promise.all([api("/api/dashboard"), api("/api/actions")]);
@@ -103,6 +106,10 @@ function Dashboard() {
   }, [selected, auth]);
 
   useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
+
+  useEffect(() => {
     if (!auth?.authenticated) return undefined;
     const timer = window.setInterval(() => {
       const guildRequest = selected ? api(`/api/guilds/${selected}`) : Promise.resolve(null);
@@ -113,9 +120,13 @@ function Dashboard() {
         if (guildData) setGuild(guildData);
         if (adminData) setAdmin(adminData);
       }).catch(() => {});
-    }, 10000);
+    }, refreshIntervalMs);
     return () => window.clearInterval(timer);
-  }, [auth, selected]);
+  }, [auth, selected, refreshIntervalMs]);
+
+  useEffect(() => () => {
+    if (refreshResetRef.current) window.clearTimeout(refreshResetRef.current);
+  }, []);
 
   async function submit(type, payload, guildId = selected) {
     setBusy(true);
@@ -129,6 +140,20 @@ function Dashboard() {
       setMessage("Added to the bot queue. This view will update when it is processed.");
       await loadWorkspace();
       await loadAdmin();
+      if (guildId) {
+        try {
+          const guildData = await api(`/api/guilds/${guildId}`);
+          if (selectedRef.current === guildId) {
+            setGuild(guildData);
+          }
+        } catch {}
+      }
+      setRefreshIntervalMs(2500);
+      if (refreshResetRef.current) window.clearTimeout(refreshResetRef.current);
+      refreshResetRef.current = window.setTimeout(() => {
+        setRefreshIntervalMs(10000);
+        refreshResetRef.current = null;
+      }, 10000);
     } catch (error) {
       setMessage(error.message);
     } finally {

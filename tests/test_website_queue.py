@@ -1,8 +1,10 @@
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
+from cogs.website_queue import WebsiteQueueCog
 from utils.website_queue import claim_next_action, enqueue_action, finish_action, list_user_actions
 from utils.website_owner_actions import require_bot_owner
 
@@ -31,6 +33,12 @@ class WebsiteQueueTests(unittest.TestCase):
 
     def test_configured_owner_can_pass_bot_guard(self):
         self.assertIsNone(require_bot_owner("950", 950))
+
+    def test_queue_loop_intervals_match_dashboard_expectations(self):
+        cog = WebsiteQueueCog(SimpleNamespace())
+
+        self.assertEqual(cog.process_actions.seconds, 2.0)
+        self.assertEqual(cog.publish_runtime.seconds, 30.0)
 
 
 if __name__ == "__main__":

@@ -38,6 +38,20 @@ class WebsiteApiAuthorizationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 202)
         enqueue.assert_called_once_with("100", "42", "schedule.send", {"team_name": "Alpha"})
 
+    def test_team_captain_can_queue_event_creation(self):
+        payload = {"team_name": "Alpha", "event_name": "Practice", "date": "2026-10-01", "time": "19:30"}
+
+        response, enqueue = self.post_action("event.create", payload)
+
+        self.assertEqual(response.status_code, 202)
+        enqueue.assert_called_once_with("100", "42", "event.create", payload)
+
+    def test_event_creation_requires_name_date_and_time(self):
+        response, enqueue = self.post_action("event.create", {"team_name": "Alpha", "event_name": "", "date": "2026-10-01"})
+
+        self.assertEqual(response.status_code, 400)
+        enqueue.assert_not_called()
+
     def test_non_captain_cannot_queue_team_action(self):
         outsider = {**self.identity, "user": {"id": "43", "username": "member"}}
 
@@ -171,11 +185,11 @@ class WebsiteApiAuthorizationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 202)
         enqueue.assert_called_once_with("100", "42", "server.settings_update", payload)
 
-    def test_suggestion_server_owner_can_manage_blacklist(self):
-        suggestion_owner = {**self.identity, "guilds": [{**self.identity["guilds"][0], "owner": True}]}
+    def test_suggestion_server_admin_can_manage_blacklist(self):
+        suggestion_admin = {**self.identity, "guilds": [{**self.identity["guilds"][0], "permissions": str(1 << 3)}]}
         payload = {"target_user_id": "123456"}
         with patch("website.api.SUGGESTION_GUILD_ID", 100), patch(
-            "website.api._identity", return_value=suggestion_owner
+            "website.api._identity", return_value=suggestion_admin
         ), patch("website.api.read_servers", return_value=self.servers), patch(
             "website.api.enqueue_action", return_value="suggestion-action"
         ) as enqueue:
