@@ -15,6 +15,10 @@ class HelpCommandTests(unittest.TestCase):
         with patch.dict(os.environ, {"WEBSITE_BASE_URL": ""}, clear=False):
             self.assertEqual(_website_base_url(), "")
 
+    def test_website_base_url_is_blank_when_env_missing(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(_website_base_url(), "")
+
 
 class WebsiteSlashCommandTests(unittest.IsolatedAsyncioTestCase):
     async def test_website_command_in_dm_does_not_check_bot_channel(self):
