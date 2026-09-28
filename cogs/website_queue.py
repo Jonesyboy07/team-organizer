@@ -155,8 +155,8 @@ class WebsiteQueueCog(commands.Cog):
             self._update_team(guild, teams, team, fields)
             return f"Settings saved for {team['team_name']}."
         if action_type == "team.delete":
-            if not is_admin:
-                raise PermissionError("Only server owners and configured server admins can delete teams.")
+            if not is_owner:
+                raise PermissionError("Only the server owner can delete teams.")
             if team is None:
                 raise ValueError("That team no longer exists.")
             teams.remove(team)

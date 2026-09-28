@@ -1,3 +1,4 @@
+import asyncio
 import tempfile
 import unittest
 from pathlib import Path
@@ -39,6 +40,54 @@ class WebsiteQueueTests(unittest.TestCase):
 
         self.assertEqual(cog.process_actions.seconds, 2.0)
         self.assertEqual(cog.publish_runtime.seconds, 30.0)
+
+    def test_queue_revalidates_team_delete_as_owner_only(self):
+        guild = SimpleNamespace(
+            owner_id=999,
+            get_member=lambda _user_id: SimpleNamespace(
+                id=42,
+                guild_permissions=SimpleNamespace(administrator=True),
+                roles=[],
+            ),
+        )
+        bot = SimpleNamespace(get_guild=lambda _guild_id: guild)
+        cog = WebsiteQueueCog(bot)
+        action = {
+            "guild_id": "100",
+            "user_id": "42",
+            "action_type": "team.delete",
+            "payload": {"team_name": "Alpha"},
+        }
+        with patch("cogs.website_queue.get_server", return_value={"teams": [{"team_name": "Alpha", "team_captain_id": 42}]}), patch(
+            "cogs.website_queue.CheckIfAdminRole", return_value=True
+        ):
+            with self.assertRaisesRegex(PermissionError, "server owner"):
+                asyncio.run(cog._execute(action))
+
+    def test_queue_allows_owner_team_delete(self):
+        guild = SimpleNamespace(
+            owner_id=42,
+            get_member=lambda _user_id: SimpleNamespace(
+                id=42,
+                guild_permissions=SimpleNamespace(administrator=False),
+                roles=[],
+            ),
+        )
+        bot = SimpleNamespace(get_guild=lambda _guild_id: guild)
+        cog = WebsiteQueueCog(bot)
+        action = {
+            "guild_id": "100",
+            "user_id": "42",
+            "action_type": "team.delete",
+            "payload": {"team_name": "Alpha"},
+        }
+        with patch("cogs.website_queue.get_server", return_value={"teams": [{"team_name": "Alpha", "team_captain_id": 42}]}), patch(
+            "cogs.website_queue.save_teams"
+        ) as save:
+            result = asyncio.run(cog._execute(action))
+
+        self.assertEqual(result, "Team Alpha deleted.")
+        save.assert_called_once_with(100, [])
 
 
 if __name__ == "__main__":

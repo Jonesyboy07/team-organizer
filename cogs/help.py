@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 
 import discord
@@ -25,6 +26,12 @@ def _format_duration(total_seconds: int) -> str:
         parts.append(f"{minutes}m")
     parts.append(f"{seconds}s")
     return " ".join(parts)
+
+
+def _website_base_url() -> str:
+    return os.getenv("WEBSITE_BASE_URL", "").strip().rstrip("/")
+
+
 class HelpCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -119,6 +126,23 @@ class HelpCog(commands.Cog):
     async def invite_command(self, interaction: discord.Interaction):
         await interaction.response.send_message(
             f"ℹ️ Invite the bot using this link: {INVITE_LINK}",
+            ephemeral= not CheckIfBotChannel(
+                interaction.channel_id,
+                interaction.guild_id
+            )
+        )
+
+    @app_commands.command(name="website", description="Get the Team Organizer website link")
+    async def website_command(self, interaction: discord.Interaction):
+        website_url = _website_base_url()
+        if not website_url:
+            await interaction.response.send_message(
+                "⚠️ Website URL is not configured. Set `WEBSITE_BASE_URL` in `.env`.",
+                ephemeral=True
+            )
+            return
+        await interaction.response.send_message(
+            f"🌐 Team Organizer website: {website_url}",
             ephemeral= not CheckIfBotChannel(
                 interaction.channel_id,
                 interaction.guild_id
