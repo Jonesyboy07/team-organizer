@@ -3,6 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from utils.command_helpers import CommandResponse
+from utils.funcs import CheckIfAdminRole
 from utils.game_service import (
     SUGGESTION_CHANNEL_ID,
     SUGGESTION_GUILD_ID,
@@ -13,6 +14,14 @@ from utils.game_service import (
     is_suggestion_blacklisted,
     suggestion_cooldown_remaining,
 )
+
+
+def can_manage_game_suggestions(member: discord.Member, guild_owner_id: int, guild_id: int) -> bool:
+    return bool(
+        member.id == guild_owner_id
+        or member.guild_permissions.administrator
+        or CheckIfAdminRole([role.id for role in member.roles], str(guild_id))
+    )
 
 
 class GamesCog(commands.Cog):
@@ -38,6 +47,12 @@ class GamesCog(commands.Cog):
     async def suggest_game(self, interaction: discord.Interaction, game_name: str):
         if interaction.guild_id != SUGGESTION_GUILD_ID:
             await CommandResponse.error(interaction, "Game suggestions are only accepted in the central server.")
+            return
+        if not can_manage_game_suggestions(interaction.user, interaction.guild.owner_id, interaction.guild_id):
+            await CommandResponse.error(
+                interaction,
+                "Only server admins can submit game suggestions.",
+            )
             return
         if is_suggestion_blacklisted(interaction.user.id):
             await CommandResponse.error(interaction, "You are not allowed to submit game suggestions.")

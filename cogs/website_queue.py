@@ -41,7 +41,7 @@ class WebsiteQueueCog(commands.Cog):
         self.process_actions.cancel()
         self.publish_runtime.cancel()
 
-    @tasks.loop(seconds=30)
+    @tasks.loop(seconds=10)
     async def publish_runtime(self):
         started_at = getattr(self.bot, "started_at", datetime.now(timezone.utc)).isoformat()
         guild_catalog = [{
@@ -73,7 +73,7 @@ class WebsiteQueueCog(commands.Cog):
     async def wait_for_runtime_ready(self):
         await self.bot.wait_until_ready()
 
-    @tasks.loop(seconds=5)
+    @tasks.loop(seconds=2)
     async def process_actions(self):
         try:
             action = await asyncio.to_thread(claim_next_action)

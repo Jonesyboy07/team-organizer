@@ -38,6 +38,20 @@ class WebsiteApiAuthorizationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 202)
         enqueue.assert_called_once_with("100", "42", "schedule.send", {"team_name": "Alpha"})
 
+    def test_team_captain_can_queue_event_creation(self):
+        payload = {"team_name": "Alpha", "event_name": "Practice", "date": "2026-10-01", "time": "19:30"}
+
+        response, enqueue = self.post_action("event.create", payload)
+
+        self.assertEqual(response.status_code, 202)
+        enqueue.assert_called_once_with("100", "42", "event.create", payload)
+
+    def test_event_creation_requires_name_date_and_time(self):
+        response, enqueue = self.post_action("event.create", {"team_name": "Alpha", "event_name": "", "date": "2026-10-01"})
+
+        self.assertEqual(response.status_code, 400)
+        enqueue.assert_not_called()
+
     def test_non_captain_cannot_queue_team_action(self):
         outsider = {**self.identity, "user": {"id": "43", "username": "member"}}
 

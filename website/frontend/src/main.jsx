@@ -113,7 +113,7 @@ function Dashboard() {
         if (guildData) setGuild(guildData);
         if (adminData) setAdmin(adminData);
       }).catch(() => {});
-    }, 10000);
+    }, 3000);
     return () => window.clearInterval(timer);
   }, [auth, selected]);
 
