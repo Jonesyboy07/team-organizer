@@ -48,7 +48,19 @@ class GamesCog(commands.Cog):
         if interaction.guild_id != SUGGESTION_GUILD_ID:
             await CommandResponse.error(interaction, "Game suggestions are only accepted in the central server.")
             return
-        if not can_manage_game_suggestions(interaction.user, interaction.guild.owner_id, interaction.guild_id):
+        if interaction.guild is None:
+            await CommandResponse.error(interaction, "Game suggestions are only accepted in the central server.")
+            return
+
+        member = interaction.user if isinstance(interaction.user, discord.Member) else interaction.guild.get_member(interaction.user.id)
+        if member is None:
+            try:
+                member = await interaction.guild.fetch_member(interaction.user.id)
+            except (discord.HTTPException, discord.NotFound):
+                await CommandResponse.error(interaction, "Your server permissions could not be verified. Please try again.")
+                return
+
+        if not can_manage_game_suggestions(member, interaction.guild.owner_id, interaction.guild_id):
             await CommandResponse.error(
                 interaction,
                 "Only server admins can submit game suggestions.",
