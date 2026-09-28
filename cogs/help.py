@@ -141,12 +141,16 @@ class HelpCog(commands.Cog):
                 ephemeral=True
             )
             return
-        await interaction.response.send_message(
-            f"🌐 Team Organizer website: {website_url}",
-            ephemeral=not CheckIfBotChannel(
+        is_ephemeral = (
+            interaction.guild_id is None
+            or not CheckIfBotChannel(
                 interaction.channel_id,
                 interaction.guild_id
             )
+        )
+        await interaction.response.send_message(
+            f"🌐 Team Organizer website: {website_url}",
+            ephemeral=is_ephemeral
         )
     
     @app_commands.command(name="stats", description="Show bot statistics")
