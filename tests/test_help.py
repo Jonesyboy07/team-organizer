@@ -35,6 +35,24 @@ class WebsiteSlashCommandTests(unittest.IsolatedAsyncioTestCase):
             ephemeral=True,
         )
 
+    async def test_website_command_in_bot_channel_can_be_public(self):
+        cog = HelpCog(SimpleNamespace())
+        interaction = SimpleNamespace(
+            guild_id=456,
+            channel_id=123,
+            response=SimpleNamespace(send_message=AsyncMock()),
+        )
+        with patch.dict(os.environ, {"WEBSITE_BASE_URL": "https://dashboard.example.com"}, clear=False), patch(
+            "cogs.help.CheckIfBotChannel", return_value=True
+        ) as check:
+            await HelpCog.website_command.callback(cog, interaction)
+
+        check.assert_called_once_with(123, 456)
+        interaction.response.send_message.assert_awaited_once_with(
+            "🌐 Team Organizer website: https://dashboard.example.com",
+            ephemeral=False,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
