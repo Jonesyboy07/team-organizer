@@ -338,7 +338,7 @@ function TeamSettings({ team, data, guild, busy, submit }) {
     <label>Request channel<select name="team_request_channel" defaultValue={team.team_request_channel} required>{guild.channels.map((channel) => <option value={channel.id} key={channel.id}>{channel.name}</option>)}</select></label>
     <label>Timezone<select name="timezone" defaultValue={team.timezone}>{data.timezones.map((timezone) => <option key={timezone}>{timezone}</option>)}</select></label>
     <button className="small-submit" disabled={busy}>Queue settings <Icon name="arrow" /></button>
-  </form><button className="delete-team" disabled={busy} onClick={() => { if (window.confirm(`Delete ${team.team_name}? This cannot be undone.`)) submit("team.delete", { team_name: team.team_name }); }}>Delete team</button></details>;
+  </form>{guild.is_owner && <button className="delete-team" disabled={busy} onClick={() => { if (window.confirm(`Delete ${team.team_name}? This cannot be undone.`)) submit("team.delete", { team_name: team.team_name }); }}>Delete team</button>}</details>;
 }
 
 function gameName(games, id) { return games.find((game) => game.id === id)?.name || id || "Game not set"; }

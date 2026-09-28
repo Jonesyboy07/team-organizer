@@ -126,6 +126,18 @@ class WebsiteApiAuthorizationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 202)
         enqueue.assert_called_once_with("0", "950", "owner.version_set", {"version": "4.0"})
 
+    def test_team_delete_is_limited_to_server_owner(self):
+        admin = {**self.identity, "guilds": [{**self.identity["guilds"][0], "permissions": str(1 << 3)}]}
+        owner = {**self.identity, "guilds": [{**self.identity["guilds"][0], "owner": True}]}
+
+        response, enqueue = self.post_action("team.delete", {"team_name": "Alpha"}, admin)
+        self.assertEqual(response.status_code, 403)
+        enqueue.assert_not_called()
+
+        response, enqueue = self.post_action("team.delete", {"team_name": "Alpha"}, owner)
+        self.assertEqual(response.status_code, 202)
+        enqueue.assert_called_once_with("100", "42", "team.delete", {"team_name": "Alpha"})
+
     def test_owner_server_ban_requires_matching_confirmation(self):
         owner = {**self.identity, "user": {"id": "950", "username": "owner"}}
         with patch.dict(os.environ, {"OWNER_ID": "950"}), patch(

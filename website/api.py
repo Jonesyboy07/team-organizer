@@ -311,6 +311,7 @@ def guild_data(guild_id: str):
     if membership is None:
         return jsonify(error="This server is not available to your account."), 404
     is_admin = _is_admin(membership)
+    is_owner = bool(membership.get("owner"))
     can_moderate_suggestions = bool(is_admin and guild_id == str(SUGGESTION_GUILD_ID))
     server = read_servers().get(guild_id)
     if server is None:
@@ -344,6 +345,7 @@ def guild_data(guild_id: str):
         id=guild_id,
         name=membership.get("name", "Discord server"),
         can_manage=is_admin,
+        is_owner=is_owner,
         setup_complete=bool(server.get("SetupComplete", False)),
         team_creation_disabled=bool(server.get("team_creation_blacklisted", False)),
         settings={
@@ -417,6 +419,7 @@ def submit_action():
     if membership is None:
         return jsonify(error="This server is not available to your account."), 404
     is_admin = _is_admin(membership)
+    is_owner = bool(membership.get("owner"))
     if not server and not is_admin:
         return jsonify(error="This server is not available to your account."), 404
     team_name = str(payload.get("team_name", ""))
@@ -466,8 +469,8 @@ def submit_action():
             return jsonify(error="Only the team captain or a server administrator can do that."), 403
         if action_type == "event.create" and any(not str(payload.get(key, "")).strip() for key in ("event_name", "date", "time")):
             return jsonify(error="Enter an activity name, date, and time."), 400
-        if action_type == "team.delete" and not is_admin:
-            return jsonify(error="Only server administrators can delete teams."), 403
+        if action_type == "team.delete" and not is_owner:
+            return jsonify(error="Only the server owner can delete teams."), 403
     else:
         return jsonify(error="That action is not supported."), 400
 
